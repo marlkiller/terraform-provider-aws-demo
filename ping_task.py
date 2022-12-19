@@ -41,7 +41,7 @@ def get_pkg_loss(ip):
 
 def do_ping(ip):
     loss = get_pkg_loss(ip)
-    return loss >= 50
+    return loss >= 30
 
 
 def lambda_handler(event, context):
@@ -57,7 +57,7 @@ def lambda_handler(event, context):
         pending_list.append(future_task)
     ping_fail_count = 0
     for item in pending_list:
-        if not item.result():
+        if item.result():
             ping_fail_count = ping_fail_count + 1
 
     action_body = {}
@@ -70,6 +70,7 @@ def lambda_handler(event, context):
         MessageBody=json.dumps(action_body),
         DelaySeconds=0,
     )
+    print(f'send {action_body}')
 
     print(f"mainlogrecords {current_group} - {time.time() - start:.4f}s")
 
