@@ -10,16 +10,28 @@ regex = r"([0-9\.]+)% packet loss"
 
 queue_resource = boto3.resource(
     'sqs',
-    aws_access_key_id='AKIAUK7LDPSVOWZAH57B',
-    aws_secret_access_key='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',
     region_name='cn-north-1'
 )
 queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
 
 
 def get_pkg_loss(ip):
-    # -i 可设置 ping 的时间间隔
-    # -c 指定 ping 的次数
+    """
+    -d：使用 Socket 的 SO_DEBUG 功能；
+    -c<完成次数>：设置完成要求回应的次数；
+    -f：极限检测；
+    -i<间隔秒数>：指定收发信息的间隔时间；
+    -I<网络界面>：使用指定的网络界面送出数据包；
+    -l<前置载入>：设置在送出要求信息之前，先行发出的数据包；
+    -n：只输出数值；
+    -p<范本样式>：设置填满数据包的范本样式；
+    -q：不显示指令执行过程，开头和结尾的相关信息除外；
+    -r：忽略普通的 Routing Table，直接将数据包送到远端主机上；
+    -R：记录路由过程；
+    -s<数据包大小>：设置数据包的大小；
+    -t<存活数值>：设置存活数值TTL的大小；
+    -v：详细显示指令的执行过程。
+    """
     cmd = "ping -c 1 {}".format(ip)
 
     ret = getoutput(cmd)

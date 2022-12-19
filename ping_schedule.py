@@ -6,8 +6,6 @@ import boto3
 def lambda_handler(event, context):
     queue_resource = boto3.resource(
         'sqs',
-        aws_access_key_id='AKIAUK7LDPSVOWZAH57B',
-        aws_secret_access_key='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',
         region_name='cn-north-1'
     )
     queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/ping_queue')
