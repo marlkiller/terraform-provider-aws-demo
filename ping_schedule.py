@@ -22,7 +22,6 @@ def lambda_handler(event, context):
             DelaySeconds=0,
             # MessageGroupId=str(uuid.uuid1()), # fifo need
         )
-        # time.sleep(1)
         print(resp)
 
     return {
