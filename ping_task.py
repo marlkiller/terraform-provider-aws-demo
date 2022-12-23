@@ -38,6 +38,8 @@ ping_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/29845
 
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
 
+PING_COUNT = '4'
+
 
 def get_pkg_loss(ip):
     """
@@ -56,8 +58,8 @@ def get_pkg_loss(ip):
     -t<存活数值>：设置存活数值TTL的大小；
     -v：详细显示指令的执行过程。
     """
-    regex = r"([0-9\.]+)% packet loss"
-    cmd = "ping -c 1 {}".format(ip)
+    regex = r"([0-9]) packets transmitted, ([0-9]) packets received, ([0-9\.]+)% packet loss"
+    cmd = f"ping -c {PING_COUNT} {ip}"
     ret = getoutput(cmd)
 
     '''
@@ -65,13 +67,13 @@ def get_pkg_loss(ip):
     64 bytes from 110.242.68.4: icmp_seq=0 ttl=51 time=12.747 ms
 
     --- www.a.shifen.com ping statistics ---
-    2 packets transmitted, 2 packets received, 0.0% packet loss
+    4 packets transmitted, 0 packets received, 100.0% packet loss
     round-trip min/avg/max/stddev = 11.337/12.042/12.747/0.705 ms
     '''
     search = re.search(regex, ret, re.MULTILINE)
-    loss = float(search.groups()[0])
-    logger.info(f"cmd : {cmd}, ret :{ret} , loss :{loss}")
-    return loss
+    transmitted, received, loss = search.groups()[0], search.groups()[1], float(search.groups()[2])
+    logger.info(f"cmd : {cmd}, ret :{ret}")
+    return received
 
 
 def get_socket_stats(ip):
@@ -90,8 +92,8 @@ def get_socket_stats(ip):
 
 def do_ping(ip):
     # return get_socket_stats(ip)
-    loss = get_pkg_loss(ip)
-    return loss
+    received = get_pkg_loss(ip)
+    return received
 
 
 def create_ttl(milliseconds: int = None, seconds: int = None, minutes: int = None, hours: int = None,
@@ -177,22 +179,21 @@ def do_task(event):
         lock_resource(name, uuid)
 
         while time.time() < t_end:
-            ping_fail_count = 0
             for ip in ip_list:
-                if do_ping(ip) != 0:
-                    ping_fail_count = ping_fail_count + 1
-            action_body = {}
-            if ping_fail_count > 0:
-                action_body['action'] = 'acl-close'
-            else:
-                action_body['action'] = 'acl-open'
-            acton_queue.send_message(
-                MessageBody=json.dumps(action_body),
-                DelaySeconds=0,
-            )
-            logger.info(f'acton_queue send  {action_body}')
-            time.sleep(2)
+                received_count = do_ping(ip)
+                action_body = {}
+                if received_count == PING_COUNT:
+                    action_body['action'] = 'acl-open'
+                elif received_count == '0':
+                    action_body['action'] = 'acl-close'
 
+                if action_body.get('action'):
+                    acton_queue.send_message(
+                        MessageBody=json.dumps(action_body),
+                        DelaySeconds=0,
+                    )
+                    logger.info(f'acton_queue send  {action_body}')
+                    time.sleep(2)
     finally:
         try:
             lock_table.delete_item(
@@ -205,7 +206,7 @@ def do_task(event):
     logger.info(f'do_task complete current_group :{current_group} , cost time - {time.time() - t_start:.4f}s')
 
 
-def lambda_handler(event, context):
+if __name__ == '__main__':
     thread_pool = ThreadPoolExecutor(20)
 
     while True:
@@ -215,8 +216,3 @@ def lambda_handler(event, context):
             for item in msg:
                 thread_pool.submit(do_task, item.body)
         time.sleep(1)
-
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Hello from Lambda!')
-    }

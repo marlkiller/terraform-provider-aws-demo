@@ -2,6 +2,33 @@ import json
 
 import boto3
 
+"""
+{
+    "group_1": {
+        "ips": [
+            "10.0.0.1",
+            "10.0.0.2",
+            "10.0.0.3"
+        ],
+        "acl_ids": [
+            "acl-xxxx1",
+            "acl-xxxx2"
+        ]
+    },
+    "group_2": {
+        "ips": [
+            "10.0.0.4",
+            "10.0.0.5",
+            "10.0.0.6"
+        ],
+        "acl_ids": [
+            "acl-xxxx3",
+            "acl-xxxx4"
+        ]
+    }
+}
+"""
+
 
 def lambda_handler(event, context):
     queue_resource = boto3.resource(
@@ -12,7 +39,7 @@ def lambda_handler(event, context):
 
     ip_groups = [{
         'name': 'group_1',
-        'ping_ips': ['www.baidu.com']
+        'ping_ips': ['www.baidu1.com']
     }]
 
     for item in ip_groups:
