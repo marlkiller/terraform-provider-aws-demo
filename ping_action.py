@@ -10,6 +10,8 @@ client = boto3.client(
     region_name='cn-north-1'
 )
 
+acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
+
 
 def close_acl(acl_id):
     # deny
@@ -22,6 +24,10 @@ def close_acl(acl_id):
         RuleNumber=100
     )
     print(f"ACL closed time: {datetime.now()}")
+    acl_table.put_item(Item={
+        'arn': ACL_ID,
+        'status': 'deny',
+    })
 
 
 def open_acl(acl_id):
@@ -35,6 +41,10 @@ def open_acl(acl_id):
         RuleNumber=100
     )
     print(f"ACL opened time: {datetime.now()}")
+    acl_table.put_item(Item={
+        'arn': ACL_ID,
+        'status': 'allow',
+    })
 
 
 def lambda_handler(event, context):
@@ -54,3 +64,7 @@ def lambda_handler(event, context):
                 logging.debug("opening")
 
     print(f"触发时间: {datetime.now()}")
+
+
+if __name__ == '__main__':
+    open_acl(ACL_ID)

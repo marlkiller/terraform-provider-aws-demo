@@ -37,6 +37,7 @@ acton_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/2984
 ping_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/ping_queue')
 
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
+acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
 
 PING_COUNT = '4'
 
@@ -154,8 +155,12 @@ def lock_resource(name, uuid):
                             'left to lock the resource.', name, random_sleep, get_remaining_seconds(lock_date))
                 time.sleep(random_sleep)
             else:
+                lock_table.delete_item(
+                    Key={'arn': name},
+                )
+                logger.error(f'ARN {name} is currently locked more than 120 seconds. Will be release this lock')
                 raise ConflictException(
-                    message=f'ARN {name} is currently locked. Please retry in a couple of minutes.',
+                    message=f'ARN {name} is currently locked more than 120 seconds. Will be release this lock',
                     conflict_errors=[name])
 
 
@@ -166,42 +171,48 @@ def get_remaining_seconds(lock_date):
 def do_task(event):
     logger.info(f'do_task event : {event}')
     current_group = json.loads(event)
-    ip_list = current_group.get('ping_ips')
-    name = current_group.get('name')
-    logger.info(f'current_group : {current_group}, ip_list : {ip_list}')
-
-    uuid = str(uuid1())
+    ping_ip = current_group.get('ping_ip')
+    # name = current_group.get('name')
+    logger.info(f'current_group : {current_group}, ping_ip : {ping_ip}')
 
     t_start = time.time()
     t_end = t_start + 120
-
+    lock_uuid = str(uuid1())
     try:
-        lock_resource(name, uuid)
+        lock_resource(ping_ip, lock_uuid)
 
         while time.time() < t_end:
-            for ip in ip_list:
-                received_count = do_ping(ip)
-                action_body = {}
-                if received_count == PING_COUNT:
-                    action_body['action'] = 'acl-open'
-                elif received_count == '0':
-                    action_body['action'] = 'acl-close'
+            received_count = do_ping(ping_ip)
+            action_body = {}
+            db_acl = acl_table.get_item(
+                Key={'arn': 'acl-0d5098dea8ba07575'}
+            ).get('Item')
+            if received_count == PING_COUNT:
+                if db_acl and db_acl.get('status') == 'allow':
+                    logger.info("already opened , ignore")
+                    continue
+                action_body['action'] = 'acl-open'
+            elif received_count == '0':
+                if db_acl and db_acl.get('status') == 'deny':
+                    logger.info("already closed , ignore")
+                    continue
+                action_body['action'] = 'acl-close'
 
-                if action_body.get('action'):
-                    acton_queue.send_message(
-                        MessageBody=json.dumps(action_body),
-                        DelaySeconds=0,
-                    )
-                    logger.info(f'acton_queue send  {action_body}')
-                    time.sleep(2)
+            if action_body.get('action'):
+                acton_queue.send_message(
+                    MessageBody=json.dumps(action_body),
+                    DelaySeconds=0,
+                )
+                logger.info(f'acton_queue send  {action_body}')
+                time.sleep(2)
     finally:
         try:
             lock_table.delete_item(
-                Key={'arn': name},
-                ConditionExpression=Attr('uuid').eq(uuid)
+                Key={'arn': ping_ip},
+                ConditionExpression=Attr('uuid').eq(lock_uuid)
             )
         except Exception as e:
-            logger.error('Can\'t delete resource lock for %s , msg : %s', name, e)
+            logger.error('Can\'t delete resource lock for %s , msg : %s', ping_ip, e)
 
     logger.info(f'do_task complete current_group :{current_group} , cost time - {time.time() - t_start:.4f}s')
 
