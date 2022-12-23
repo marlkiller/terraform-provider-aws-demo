@@ -14,6 +14,10 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from moto.transcribe.exceptions import ConflictException
 
+"""
+pip3 install moto
+pip3 install boto3
+"""
 
 def get_logging():
     fm = "%(asctime)s %(levelname)s [%(threadName)s] [%(filename)s(%(funcName)s:%(lineno)d)] - %(message)s'"
@@ -73,9 +77,12 @@ def get_pkg_loss(ip):
     round-trip min/avg/max/stddev = 11.337/12.042/12.747/0.705 ms
     '''
     logger.info(f"cmd : {cmd}, ret :{ret}")
-    if ret and ret.__contains__('Unknown host'):
-        return 0
+    # ping: www.baidu.com8: Name or service not known
+    # if ret and ret.__contains__('Unknown host'):
+    #     return 0
     search = re.search(regex, ret, re.MULTILINE)
+    if not search:
+        return 0
     transmitted, received, loss = search.groups()[0], search.groups()[1], float(search.groups()[2])
     return received
 

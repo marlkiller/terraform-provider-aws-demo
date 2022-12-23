@@ -1,7 +1,13 @@
+import os
+import time
+
 import boto3
 from datetime import datetime
 import logging
 import json
+
+os.putenv('TZ', 'Asia/Shanghai')
+time.tzset()
 
 ACL_ID = "acl-0d5098dea8ba07575"
 
@@ -27,6 +33,7 @@ def close_acl(acl_id):
     acl_table.put_item(Item={
         'arn': ACL_ID,
         'status': 'deny',
+        'update_tile': str_now_time()
     })
 
 
@@ -44,7 +51,12 @@ def open_acl(acl_id):
     acl_table.put_item(Item={
         'arn': ACL_ID,
         'status': 'allow',
+        'update_tile': str_now_time()
     })
+
+
+def str_now_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def lambda_handler(event, context):
