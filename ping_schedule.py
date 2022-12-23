@@ -16,7 +16,18 @@ def lambda_handler(event, context):
 
     ip_groups = [{
         'name': 'group_1',
-        'ping_ip': 'www.baidu.com'
+        'ping_ips': [
+            'www.baidu.com0',
+            'www.baidu.com1',
+            'www.baidu.com2',
+            'www.baidu.com3',
+            'www.baidu.com4',
+            'www.baidu.com5',
+            'www.baidu.com6',
+            'www.baidu.com7',
+            'www.baidu.com8',
+            'www.baidu.com9',
+        ]
     }]
 
     for item in ip_groups:

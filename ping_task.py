@@ -4,6 +4,7 @@ import random
 import re
 import socket
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from subprocess import getoutput
@@ -39,7 +40,7 @@ ping_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/29845
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
 acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
 
-PING_COUNT = '4'
+PING_COUNT = '1'
 
 
 def get_pkg_loss(ip):
@@ -71,9 +72,11 @@ def get_pkg_loss(ip):
     4 packets transmitted, 0 packets received, 100.0% packet loss
     round-trip min/avg/max/stddev = 11.337/12.042/12.747/0.705 ms
     '''
+    logger.info(f"cmd : {cmd}, ret :{ret}")
+    if ret and ret.__contains__('Unknown host'):
+        return 0
     search = re.search(regex, ret, re.MULTILINE)
     transmitted, received, loss = search.groups()[0], search.groups()[1], float(search.groups()[2])
-    logger.info(f"cmd : {cmd}, ret :{ret}")
     return received
 
 
@@ -171,32 +174,42 @@ def get_remaining_seconds(lock_date):
 def do_task(event):
     logger.info(f'do_task event : {event}')
     current_group = json.loads(event)
-    ping_ip = current_group.get('ping_ip')
-    # name = current_group.get('name')
-    logger.info(f'current_group : {current_group}, ping_ip : {ping_ip}')
-
+    ping_ips = current_group.get('ping_ips', [])
+    group_name = current_group.get('name')
+    logger.info(f'current_group : {current_group}')
+    ips_thread_pool = ThreadPoolExecutor(len(ping_ips))
     t_start = time.time()
     t_end = t_start + 120
     lock_uuid = str(uuid1())
     try:
-        lock_resource(ping_ip, lock_uuid)
+        lock_resource(group_name, lock_uuid)
 
         while time.time() < t_end:
-            received_count = do_ping(ping_ip)
+            pending_list = []
+            ping_fail = False
+            for ip in ping_ips:
+                future_task = ips_thread_pool.submit(do_ping, ip)
+                pending_list.append(future_task)
+            for pend_item in pending_list:
+                result = pend_item.result()
+                if result == 0:
+                    ping_fail = True
+                    break
+            logger.info(f"ping fail  {ping_fail}")
             action_body = {}
             db_acl = acl_table.get_item(
                 Key={'arn': 'acl-0d5098dea8ba07575'}
             ).get('Item')
-            if received_count == PING_COUNT:
-                if db_acl and db_acl.get('status') == 'allow':
-                    logger.info("already opened , ignore")
-                    continue
-                action_body['action'] = 'acl-open'
-            elif received_count == '0':
+            if ping_fail:
                 if db_acl and db_acl.get('status') == 'deny':
                     logger.info("already closed , ignore")
                     continue
                 action_body['action'] = 'acl-close'
+            else:
+                if db_acl and db_acl.get('status') == 'allow':
+                    logger.info("already opened , ignore")
+                    continue
+                action_body['action'] = 'acl-open'
 
             if action_body.get('action'):
                 acton_queue.send_message(
@@ -205,14 +218,17 @@ def do_task(event):
                 )
                 logger.info(f'acton_queue send  {action_body}')
                 time.sleep(2)
+    except Exception as e:
+        traceback.print_exc()
+        logger.error(e)
     finally:
         try:
             lock_table.delete_item(
-                Key={'arn': ping_ip},
+                Key={'arn': group_name},
                 ConditionExpression=Attr('uuid').eq(lock_uuid)
             )
         except Exception as e:
-            logger.error('Can\'t delete resource lock for %s , msg : %s', ping_ip, e)
+            logger.error('Can\'t delete resource lock for %s , msg : %s', group_name, e)
 
     logger.info(f'do_task complete current_group :{current_group} , cost time - {time.time() - t_start:.4f}s')
 
