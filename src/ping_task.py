@@ -1,14 +1,16 @@
 import json
 import logging
+import os
 import random
 import re
 import socket
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime
 from subprocess import getoutput
 from uuid import uuid1
+import platform
 
 import boto3
 from boto3.dynamodb.conditions import Attr
@@ -18,6 +20,28 @@ from moto.transcribe.exceptions import ConflictException
 pip3 install moto
 pip3 install boto3
 """
+
+os.putenv('TZ', 'Asia/Shanghai')
+time.tzset()
+
+queue_resource = boto3.resource(
+    'sqs',
+    region_name='cn-north-1'
+)
+acton_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
+ping_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/ping_queue')
+
+lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
+acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
+
+PING_COUNT = 4
+
+TASK_RUN_TIME = 120
+
+CURRENT_PLATFORM = platform.system()
+PING_TIMEOUT = '-w 5'
+if CURRENT_PLATFORM.lower() == 'Darwin':
+    PING_TIMEOUT = '-t 5'
 
 
 def get_logging():
@@ -37,38 +61,10 @@ def get_logging():
 
 logger = get_logging()
 
-queue_resource = boto3.resource(
-    'sqs',
-    region_name='cn-north-1'
-)
-acton_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
-ping_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/ping_queue')
-
-lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
-acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
-
-PING_COUNT = '1'
-
 
 def get_pkg_loss(ip):
-    """
-    -d：使用 Socket 的 SO_DEBUG 功能；
-    -c<完成次数>：设置完成要求回应的次数；
-    -f：极限检测；
-    -i<间隔秒数>：指定收发信息的间隔时间；
-    -I<网络界面>：使用指定的网络界面送出数据包；
-    -l<前置载入>：设置在送出要求信息之前，先行发出的数据包；
-    -n：只输出数值；
-    -p<范本样式>：设置填满数据包的范本样式；
-    -q：不显示指令执行过程，开头和结尾的相关信息除外；
-    -r：忽略普通的 Routing Table，直接将数据包送到远端主机上；
-    -R：记录路由过程；
-    -s<数据包大小>：设置数据包的大小；
-    -t<存活数值>：设置存活数值TTL的大小；
-    -v：详细显示指令的执行过程。
-    """
-    regex = r"([0-9]) packets transmitted, ([0-9]) packets received, ([0-9\.]+)% packet loss"
-    cmd = f"ping -c {PING_COUNT} {ip}"
+    regex = r"([0-9\.]+)% packet loss"
+    cmd = f"ping -c {PING_COUNT} {PING_TIMEOUT} {ip}"
     ret = getoutput(cmd)
 
     '''
@@ -80,14 +76,11 @@ def get_pkg_loss(ip):
     round-trip min/avg/max/stddev = 11.337/12.042/12.747/0.705 ms
     '''
     logger.info(f"cmd : {cmd}, ret :{ret}")
-    # ping: www.baidu.com8: Name or service not known
-    # if ret and ret.__contains__('Unknown host'):
-    #     return 0
     search = re.search(regex, ret, re.MULTILINE)
     if not search:
-        return 0
-    transmitted, received, loss = search.groups()[0], search.groups()[1], float(search.groups()[2])
-    return received
+        return 100
+    loss = search.groups()[0]
+    return int(loss)
 
 
 def get_socket_stats(ip):
@@ -106,51 +99,20 @@ def get_socket_stats(ip):
 
 def do_ping(ip):
     # return get_socket_stats(ip)
-    received = get_pkg_loss(ip)
-    return received
-
-
-def create_ttl(milliseconds: int = None, seconds: int = None, minutes: int = None, hours: int = None,
-               days: int = 1) -> int:
-    ''' Get a TTL value for dynamodb for minutes, hours or days in the future.
-    This function will use only minutes, only hours or only days, depending on
-    the values. If minutes and hours are 0, days are used. If minutes are 0 and
-    hours has a value greater than 0, hours will be used. If minutes has a
-    value greater than 0, minutes will be used.
-
-    Args:
-        milliseconds (int): number of milliseconds from now on when ttl ends
-        seconds (int): number of seconds from now on when ttl ends
-        minutes (int): number of minutes from now on when ttl ends
-        hours (int): number of hours from now on when ttl ends
-        days (int): number of days from now on when ttl ends
-
-    Returns:
-        ttl (int): the ttl value as integer
-    '''
-    if milliseconds:
-        ttl = int((datetime.now() + timedelta(milliseconds=int(milliseconds))).timestamp())
-    elif seconds:
-        ttl = int((datetime.now() + timedelta(seconds=int(seconds))).timestamp())
-    elif minutes:
-        ttl = int((datetime.now() + timedelta(minutes=int(minutes))).timestamp())
-    elif hours:
-        ttl = int((datetime.now() + timedelta(hours=int(hours))).timestamp())
-    else:
-        ttl = int((datetime.now() + timedelta(days=int(days))).timestamp())
-    return ttl
+    loss = get_pkg_loss(ip)
+    return loss
 
 
 def lock_resource(name, uuid):
     logger.info('Create new resource lock for %s with uuid %s', name, uuid)
-    lock_date = datetime.now()
+    first_lock_date = datetime.now()
     locked = False
     while not locked:
         try:
             args = {
                 'Item': {
                     'arn': name,
-                    'ttl': create_ttl(seconds=get_remaining_seconds(lock_date)),
+                    'lock_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     'uuid': uuid,
                     'source': 'group',
                     'status': 'LOCKED'
@@ -160,25 +122,26 @@ def lock_resource(name, uuid):
 
             lock_table.put_item(**args)
             locked = True
+            logger.info(f"Lock resource [{name}] successful")
 
         except lock_table.meta.client.exceptions.ConditionalCheckFailedException:
-            if 0 < get_remaining_seconds(lock_date):
+            if 0 < get_remaining_seconds(first_lock_date):
                 random_sleep = random.randrange(1, 5)
                 logger.info('Retry to lock arn %s again in %s seconds. %s seconds '
-                            'left to lock the resource.', name, random_sleep, get_remaining_seconds(lock_date))
+                            'left to lock the resource.', name, random_sleep, get_remaining_seconds(first_lock_date))
                 time.sleep(random_sleep)
             else:
-                lock_table.delete_item(
-                    Key={'arn': name},
-                )
-                logger.error(f'ARN {name} is currently locked more than 120 seconds. Will be release this lock')
+                logger.error(f'ARN {name} is currently locked more than {TASK_RUN_TIME} seconds. Release this lock ??')
+                # lock_table.delete_item(
+                #     Key={'arn': name},
+                # )
                 raise ConflictException(
-                    message=f'ARN {name} is currently locked more than 120 seconds. Will be release this lock',
+                    message=f'ARN {name} is currently locked more than {TASK_RUN_TIME} seconds. Release this lock ??',
                     conflict_errors=[name])
 
 
 def get_remaining_seconds(lock_date):
-    return (lock_date - datetime.now()).total_seconds() + 120
+    return (lock_date - datetime.now()).total_seconds() + TASK_RUN_TIME
 
 
 def do_task(event):
@@ -186,48 +149,55 @@ def do_task(event):
     current_group = json.loads(event)
     ping_ips = current_group.get('ping_ips', [])
     group_name = current_group.get('name')
-    logger.info(f'current_group : {current_group}')
-    ips_thread_pool = ThreadPoolExecutor(len(ping_ips))
+    ips_thread_pool = ThreadPoolExecutor(len(ping_ips), thread_name_prefix='ip_pool')
     t_start = time.time()
-    t_end = t_start + 120
+    t_end = t_start + TASK_RUN_TIME
     lock_uuid = str(uuid1())
     try:
         lock_resource(group_name, lock_uuid)
 
         while time.time() < t_end:
             pending_list = []
-            ping_fail = False
             for ip in ping_ips:
                 future_task = ips_thread_pool.submit(do_ping, ip)
                 pending_list.append(future_task)
+            ping_loss_result = set()
             for pend_item in pending_list:
                 result = pend_item.result()
-                if result == 0:
-                    ping_fail = True
+                ping_loss_result.add(result)
+                if result == 100:
                     break
-            logger.info(f"ping fail  {ping_fail}")
-            action_body = {}
-            db_acl = acl_table.get_item(
-                Key={'arn': 'acl-0d5098dea8ba07575'}
-            ).get('Item')
-            if ping_fail:
-                if db_acl and db_acl.get('status') == 'deny':
-                    logger.info("already closed , ignore")
-                    continue
-                action_body['action'] = 'acl-close'
-            else:
-                if db_acl and db_acl.get('status') == 'allow':
-                    logger.info("already opened , ignore")
-                    continue
-                action_body['action'] = 'acl-open'
-
-            if action_body.get('action'):
-                acton_queue.send_message(
-                    MessageBody=json.dumps(action_body),
-                    DelaySeconds=0,
-                )
-                logger.info(f'acton_queue send  {action_body}')
-                time.sleep(2)
+            logger.info(f"ping_loss_result : {ping_loss_result}")
+            ping_loss_result = (list(ping_loss_result))
+            action = None
+            if ping_loss_result.__contains__(100):
+                # Network Unreachable , loss 100%
+                action = 'acl-close'
+            elif len(ping_loss_result) == 1 and ping_loss_result[0] == 0:
+                # All testing IP, no packet loss
+                action = 'acl-open'
+            if action:
+                action_body = {}
+                db_acl = acl_table.get_item(
+                    Key={'arn': 'acl-0d5098dea8ba07575'}
+                ).get('Item')
+                if action == 'acl-close':
+                    if db_acl and db_acl.get('status') == 'deny':
+                        logger.info("already closed , ignore")
+                        continue
+                    action_body['action'] = action
+                elif action == 'acl-open':
+                    if db_acl and db_acl.get('status') == 'allow':
+                        logger.info("already opened , ignore")
+                        continue
+                    action_body['action'] = action
+                if action_body.get('action'):
+                    acton_queue.send_message(
+                        MessageBody=json.dumps(action_body),
+                        DelaySeconds=0,
+                    )
+                    logger.info(f'acton_queue send  {action_body}')
+                    time.sleep(2)
     except Exception as e:
         traceback.print_exc()
         logger.error(e)
@@ -244,7 +214,7 @@ def do_task(event):
 
 
 if __name__ == '__main__':
-    thread_pool = ThreadPoolExecutor(20)
+    thread_pool = ThreadPoolExecutor(20, thread_name_prefix='task_pool')
 
     while True:
         msg = ping_queue.receive_messages()
@@ -252,4 +222,4 @@ if __name__ == '__main__':
             logger.info(f'ping_queue receive msg  {len(msg)}')
             for item in msg:
                 thread_pool.submit(do_task, item.body)
-        time.sleep(1)
+        # time.sleep(1)
