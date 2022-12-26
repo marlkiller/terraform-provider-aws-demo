@@ -19,7 +19,10 @@ pip3 install moto
 pip3 install boto3
 """
 
+
 def get_logging():
+    # TODO Compress the log files automatically
+
     fm = "%(asctime)s %(levelname)s [%(threadName)s] [%(filename)s(%(funcName)s:%(lineno)d)] - %(message)s'"
 
     logging_level = logging.INFO

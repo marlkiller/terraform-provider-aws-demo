@@ -17,18 +17,10 @@ def lambda_handler(event, context):
     queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/ping_queue')
 
     ip_groups = [{
-        'name': 'group_1',
+        'name': 'group_PE',
         'ping_ips': [
-            'www.baidu.com0',
-            'www.baidu.com1',
-            'www.baidu.com2',
-            'www.baidu.com3',
-            'www.baidu.com4',
-            'www.baidu.com5',
-            'www.baidu.com6',
-            'www.baidu.com7',
-            'www.baidu.com8',
-            'www.baidu.com9',
+            '192.168.201.34',
+            '192.168.201.30',
         ]
     }]
 
