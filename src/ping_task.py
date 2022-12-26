@@ -23,6 +23,14 @@ pip3 install boto3
 os.putenv('TZ', 'Asia/Shanghai')
 time.tzset()
 
+
+ACL_ID = "acl-0d5098dea8ba07575"
+
+ec2_client = boto3.client(
+    'ec2',
+    region_name='cn-north-1'
+)
+
 queue_resource = boto3.resource(
     'sqs',
     region_name='cn-north-1'
@@ -59,6 +67,18 @@ def get_logging():
 
 
 logger = get_logging()
+
+
+
+def filter_allow(i):
+    # Egress 出口
+    return i.get('RuleNumber') == 100 and i.get('CidrBlock') == '0.0.0.0/0' \
+        and i.get('Protocol') == '-1' and not i.get('Egress') and i.get('RuleAction') == 'allow'
+
+
+def filter_deny(i):
+    return i.get('RuleNumber') == 100 and i.get('CidrBlock') == '0.0.0.0/0' \
+        and i.get('Protocol') == '-1' and not i.get('Egress') and i.get('RuleAction') == 'deny'
 
 
 class ConflictException(Exception):
@@ -180,9 +200,19 @@ def do_task(event):
             if ping_loss_result.__contains__(100):
                 # Network Unreachable , loss 100%
                 action = 'acl-close'
+                acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
+                current_entry = list(filter(filter_deny, acls_entries))
+                if len(current_entry) > 0:
+                    logger.info(f'{ACL_ID} already deny')
+                    continue
             elif len(ping_loss_result) == 1 and ping_loss_result[0] == 0:
                 # All testing IP, no packet loss
                 action = 'acl-open'
+                acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
+                current_entry = list(filter(filter_allow, acls_entries))
+                if len(current_entry) > 0:
+                    logger.info(f'{ACL_ID} already allow')
+                    continue
             if action:
                 action_body = {'action': action}
                 acton_queue.send_message(

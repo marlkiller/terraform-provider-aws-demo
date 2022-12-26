@@ -16,8 +16,6 @@ client = boto3.client(
     region_name='cn-north-1'
 )
 
-# acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
-
 
 def filter_allow(i):
     # Egress 出口
@@ -32,11 +30,11 @@ def filter_deny(i):
 
 def close_acl(acl_id):
     # deny
-    acls_entries = client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
-    current_entry = list(filter(filter_deny, acls_entries))
-    if len(current_entry) > 0:
-        print(f'{acl_id} already deny')
-        return
+    # acls_entries = client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
+    # current_entry = list(filter(filter_deny, acls_entries))
+    # if len(current_entry) > 0:
+    #     print(f'{acl_id} already deny')
+    #     return
     client.replace_network_acl_entry(
         CidrBlock='0.0.0.0/0',
         Egress=False,
@@ -55,11 +53,11 @@ def close_acl(acl_id):
 
 def open_acl(acl_id):
     # allow
-    acls_entries = client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
-    current_entry = list(filter(filter_allow, acls_entries))
-    if len(current_entry) > 0:
-        print(f'{acl_id} already allow')
-        return
+    # acls_entries = client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
+    # current_entry = list(filter(filter_allow, acls_entries))
+    # if len(current_entry) > 0:
+    #     print(f'{acl_id} already allow')
+    #     return
     client.replace_network_acl_entry(
         CidrBlock='0.0.0.0/0',
         Egress=False,
