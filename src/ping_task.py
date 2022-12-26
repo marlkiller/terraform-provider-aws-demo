@@ -14,7 +14,6 @@ import platform
 
 import boto3
 from boto3.dynamodb.conditions import Attr
-from moto.transcribe.exceptions import ConflictException
 
 """
 pip3 install moto
@@ -40,7 +39,7 @@ TASK_RUN_TIME = 120
 
 CURRENT_PLATFORM = platform.system()
 PING_TIMEOUT = '-w 5'
-if CURRENT_PLATFORM.lower() == 'Darwin':
+if CURRENT_PLATFORM.lower() == 'darwin':
     PING_TIMEOUT = '-t 5'
 
 
@@ -62,6 +61,15 @@ def get_logging():
 logger = get_logging()
 
 
+class ConflictException(Exception):
+    def __init__(self, message) -> None:
+        super().__init__(self)
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
 def get_pkg_loss(ip):
     regex = r"([0-9\.]+)% packet loss"
     cmd = f"ping -c {PING_COUNT} {PING_TIMEOUT} {ip}"
@@ -80,7 +88,7 @@ def get_pkg_loss(ip):
     if not search:
         return 100
     loss = search.groups()[0]
-    return int(loss)
+    return int(float(loss))
 
 
 def get_socket_stats(ip):
@@ -136,8 +144,7 @@ def lock_resource(name, uuid):
                 #     Key={'arn': name},
                 # )
                 raise ConflictException(
-                    message=f'ARN {name} is currently locked more than {TASK_RUN_TIME} seconds. Release this lock ??',
-                    conflict_errors=[name])
+                    message=f'ARN {name} is currently locked more than {TASK_RUN_TIME} seconds. Release this lock ??')
 
 
 def get_remaining_seconds(lock_date):
@@ -177,27 +184,36 @@ def do_task(event):
                 # All testing IP, no packet loss
                 action = 'acl-open'
             if action:
-                action_body = {}
-                db_acl = acl_table.get_item(
-                    Key={'arn': 'acl-0d5098dea8ba07575'}
-                ).get('Item')
-                if action == 'acl-close':
-                    if db_acl and db_acl.get('status') == 'deny':
-                        logger.info("already closed , ignore")
-                        continue
-                    action_body['action'] = action
-                elif action == 'acl-open':
-                    if db_acl and db_acl.get('status') == 'allow':
-                        logger.info("already opened , ignore")
-                        continue
-                    action_body['action'] = action
-                if action_body.get('action'):
-                    acton_queue.send_message(
-                        MessageBody=json.dumps(action_body),
-                        DelaySeconds=0,
-                    )
-                    logger.info(f'acton_queue send  {action_body}')
-                    time.sleep(2)
+                action_body = {'action': action}
+                acton_queue.send_message(
+                    MessageBody=json.dumps(action_body),
+                    DelaySeconds=0,
+                )
+                logger.info(f'acton_queue send  {action_body}')
+                time.sleep(2)
+                # action_body = {}
+                # db_acl = acl_table.get_item(
+                #     Key={'arn': 'acl-0d5098dea8ba07575'}
+                # ).get('Item')
+                # if action == 'acl-close':
+                #     if db_acl and db_acl.get('status') == 'deny':
+                #         logger.info("already closed , ignore")
+                #         continue
+                #     action_body['action'] = action
+                # elif action == 'acl-open':
+                #     if db_acl and db_acl.get('status') == 'allow':
+                #         logger.info("already opened , ignore")
+                #         continue
+                #     action_body['action'] = action
+                # if action_body.get('action'):
+                #     acton_queue.send_message(
+                #         MessageBody=json.dumps(action_body),
+                #         DelaySeconds=0,
+                #     )
+                #     logger.info(f'acton_queue send  {action_body}')
+                #     time.sleep(2)
+    except ConflictException as e:
+        logger.error(e)
     except Exception as e:
         traceback.print_exc()
         logger.error(e)

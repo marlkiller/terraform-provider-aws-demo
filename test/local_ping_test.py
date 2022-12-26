@@ -4,6 +4,8 @@ import os
 from subprocess import getoutput
 
 addr = "192.168.1.123"
+
+
 # addr = "baidu.com"
 
 
@@ -42,7 +44,24 @@ def do_func(x):
     print("\n")
 
 
+class ConflictException(Exception):
+    def __init__(self, message) -> None:
+        super().__init__(self)
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
+def do_dev(x):
+    raise ConflictException(
+        message=f'ARN {"name"} is currently locked more than {"TASK_RUN_TIME"} seconds. Release this lock ??')
+
+
 if __name__ == '__main__':
-    do_func(t1)
-    do_func(t2)
-    do_func(t3)
+    try:
+        do_dev('')
+    except ConflictException as e:
+        print(e)
+    except Exception as e:
+        print(e)
