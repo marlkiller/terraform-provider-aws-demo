@@ -23,7 +23,6 @@ pip3 install boto3
 os.putenv('TZ', 'Asia/Shanghai')
 time.tzset()
 
-
 ACL_ID = "acl-0d5098dea8ba07575"
 
 ec2_client = boto3.client(
@@ -40,6 +39,9 @@ ping_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/29845
 
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
 acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
+status_table = boto3.resource('dynamodb').Table('network_monitor_status')
+
+FMT_PATTERN = "%Y-%m-%d %H:%M:%S"
 
 PING_COUNT = 4
 
@@ -67,7 +69,6 @@ def get_logging():
 
 
 logger = get_logging()
-
 
 
 def filter_allow(i):
@@ -167,6 +168,19 @@ def lock_resource(name, uuid):
                     message=f'ARN {name} is currently locked more than {TASK_RUN_TIME} seconds. Release this lock ??')
 
 
+def str_now_time():
+    return datetime.now().strftime(FMT_PATTERN)
+
+
+def save_ping_status(arn, ping_loss_result):
+    status_table.put_item(Item={
+        'arn': arn,
+        'ping_loss_result': str(ping_loss_result),
+        'update_time': str_now_time()
+    })
+    logger.info(f'save ping status :{arn} - {ping_loss_result}')
+
+
 def get_remaining_seconds(lock_date):
     return (lock_date - datetime.now()).total_seconds() + TASK_RUN_TIME
 
@@ -184,6 +198,9 @@ def do_task(event):
         lock_resource(group_name, lock_uuid)
 
         while time.time() < t_end:
+
+            db_status = status_table.get_item(Key={'arn': group_name}).get('Item')
+
             pending_list = []
             for ip in ping_ips:
                 future_task = ips_thread_pool.submit(do_ping, ip)
@@ -197,7 +214,9 @@ def do_task(event):
             logger.info(f"ping_loss_result : {ping_loss_result}")
             ping_loss_result = (list(ping_loss_result))
             action = None
+
             if ping_loss_result.__contains__(100):
+                save_ping_status(group_name, ping_loss_result)
                 # Network Unreachable , loss 100%
                 action = 'acl-close'
                 acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
@@ -207,12 +226,27 @@ def do_task(event):
                     continue
             elif len(ping_loss_result) == 1 and ping_loss_result[0] == 0:
                 # All testing IP, no packet loss
-                action = 'acl-open'
-                acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
-                current_entry = list(filter(filter_allow, acls_entries))
-                if len(current_entry) > 0:
-                    logger.info(f'{ACL_ID} already allow')
-                    continue
+                if db_status:
+                    if db_status.get('ping_loss_result') != '[0]':
+                        save_ping_status(group_name, ping_loss_result)
+                    elif db_status.get('ping_loss_result') == '[0]':
+                        diff_seconds = (datetime.now() - datetime.strptime(db_status.get('update_time'),
+                                                                           FMT_PATTERN)).seconds
+                        logger.info(f'diff_seconds :{diff_seconds}')
+                        if diff_seconds >= 300:
+                            action = 'acl-open'
+                            save_ping_status(group_name, ping_loss_result)
+                            acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0][
+                                'Entries']
+                            current_entry = list(filter(filter_allow, acls_entries))
+                            if len(current_entry) > 0:
+                                logger.info(f'{ACL_ID} already allow')
+                                continue
+                else:
+                    save_ping_status(group_name, ping_loss_result)
+            else:
+                save_ping_status(group_name, ping_loss_result)
+
             if action:
                 action_body = {'action': action}
                 acton_queue.send_message(
@@ -220,7 +254,7 @@ def do_task(event):
                     DelaySeconds=0,
                 )
                 logger.info(f'acton_queue send  {action_body}')
-                time.sleep(2)
+                # time.sleep(2)
                 # action_body = {}
                 # db_acl = acl_table.get_item(
                 #     Key={'arn': 'acl-0d5098dea8ba07575'}
