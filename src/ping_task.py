@@ -46,6 +46,7 @@ FMT_PATTERN = "%Y-%m-%d %H:%M:%S"
 PING_COUNT = 4
 
 TASK_RUN_TIME = 120
+SUCCESS_DIFF = 300
 
 CURRENT_PLATFORM = platform.system()
 PING_TIMEOUT = '-w 5'
@@ -214,9 +215,12 @@ def do_task(event):
             logger.info(f"ping_loss_result : {ping_loss_result}")
             ping_loss_result = (list(ping_loss_result))
             action = None
-
-            if ping_loss_result.__contains__(100):
+            if db_status:
+                if db_status.get('ping_loss_result') != str(ping_loss_result):
+                    save_ping_status(group_name, ping_loss_result)
+            else:
                 save_ping_status(group_name, ping_loss_result)
+            if ping_loss_result.__contains__(100):
                 # Network Unreachable , loss 100%
                 action = 'acl-close'
                 acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
@@ -227,13 +231,11 @@ def do_task(event):
             elif len(ping_loss_result) == 1 and ping_loss_result[0] == 0:
                 # All testing IP, no packet loss
                 if db_status:
-                    if db_status.get('ping_loss_result') != '[0]':
-                        save_ping_status(group_name, ping_loss_result)
-                    elif db_status.get('ping_loss_result') == '[0]':
+                    if db_status.get('ping_loss_result') == '[0]':
                         diff_seconds = (datetime.now() - datetime.strptime(db_status.get('update_time'),
                                                                            FMT_PATTERN)).seconds
-                        logger.info(f'diff_seconds :{diff_seconds}')
-                        if diff_seconds >= 300:
+                        logger.info(f'diff_seconds :{diff_seconds}/{SUCCESS_DIFF}')
+                        if diff_seconds >= SUCCESS_DIFF:
                             action = 'acl-open'
                             save_ping_status(group_name, ping_loss_result)
                             acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0][
@@ -242,10 +244,6 @@ def do_task(event):
                             if len(current_entry) > 0:
                                 logger.info(f'{ACL_ID} already allow')
                                 continue
-                else:
-                    save_ping_status(group_name, ping_loss_result)
-            else:
-                save_ping_status(group_name, ping_loss_result)
 
             if action:
                 action_body = {'action': action}
@@ -302,4 +300,3 @@ if __name__ == '__main__':
             logger.info(f'ping_queue receive msg  {len(msg)}')
             for item in msg:
                 thread_pool.submit(do_task, item.body)
-        # time.sleep(1)

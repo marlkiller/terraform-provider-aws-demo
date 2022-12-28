@@ -19,8 +19,8 @@ def lambda_handler(event, context):
     ip_groups = [{
         'name': 'group_PE',
         'ping_ips': [
-            '192.168.201.34',
-            '192.168.201.30',
+            'www.baidu.com',
+            # '192.168.201.30',
         ]
     }]
 
