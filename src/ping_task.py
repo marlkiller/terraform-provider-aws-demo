@@ -15,6 +15,8 @@ import platform
 import boto3
 from boto3.dynamodb.conditions import Attr
 
+from src.utils.logger_helper import get_logger
+
 """
 pip3 install moto
 pip3 install boto3
@@ -50,26 +52,17 @@ SUCCESS_DIFF = 300
 
 CURRENT_PLATFORM = platform.system()
 PING_TIMEOUT = '-w 5'
+
 if CURRENT_PLATFORM.lower() == 'darwin':
     PING_TIMEOUT = '-t 5'
 
-
-def get_logging():
-    # TODO Compress the log files automatically
-
-    fm = "%(asctime)s %(levelname)s [%(threadName)s] [%(filename)s(%(funcName)s:%(lineno)d)] - %(message)s'"
-
-    logging_level = logging.INFO
-    logging.basicConfig(level=logging_level,
-                        # filename="../log/log1.log",
-                        format=fm
-                        )
-    _logger = logging.getLogger()
-    _logger.setLevel(logging_level)
-    return _logger
-
-
-logger = get_logging()
+if CURRENT_PLATFORM.lower() == 'darwin':
+    logger = get_logger("./logs/monitor.log")
+elif CURRENT_PLATFORM.lower() == 'linux':
+    logger = get_logger()
+else:
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
 
 
 def filter_allow(i):

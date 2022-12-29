@@ -11,7 +11,7 @@ lambda.out
 .settings
 *.zip
 Pipfile
-Pipfile.lock
+Pipfile.loc
 
 # Python distribution / packaging
 .Python
@@ -20,7 +20,6 @@ build/
 develop-eggs/
 eggs/
 .eggs/
-lib/
 lib64/
 node_modules/
 src-global/
@@ -29,6 +28,7 @@ src-global/
 *.egg
 dist/
 **/pip-wheel-metadata/
+logs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
