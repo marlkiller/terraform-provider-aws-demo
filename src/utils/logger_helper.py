@@ -33,6 +33,14 @@ def get_logger(log_file_path: str = "/opt/logs/monitor.logs"):
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
 
+    log_colors_config = {
+        "DEBUG": "white",
+        "INFO": "green",
+        "WARNING": "yellow",
+        "ERROR": "red",
+        "CRITICAL": "bold_red"
+    }
+
     # 定义handler的输出格式
     formatter = logging.Formatter(
         '%(asctime)s-%(name)s-[%(filename)s:%(lineno)d]''-[%(levelname)s]: %(message)s')
