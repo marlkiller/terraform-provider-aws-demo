@@ -8,17 +8,15 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from logging import handlers
 from subprocess import getoutput
-from uuid import uuid1
 import platform
-
 import boto3
 from boto3.dynamodb.conditions import Attr
-
-from src.utils.logger_helper import get_logger
+import uuid
+from pathlib import Path
 
 """
-pip3 install moto
 pip3 install boto3
 """
 
@@ -36,8 +34,11 @@ queue_resource = boto3.resource(
     'sqs',
     region_name='cn-north-1'
 )
+queue_client = boto3.client(
+    'sqs',
+    region_name='cn-north-1'
+)
 acton_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
-ping_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/ping_queue')
 
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
 acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
@@ -51,18 +52,66 @@ TASK_RUN_TIME = 120
 SUCCESS_DIFF = 300
 
 CURRENT_PLATFORM = platform.system()
-PING_TIMEOUT = '-w 5'
 
+
+def get_logger(log_file_path: str = "./monitor.log"):
+    # 检测日志目录
+    log_dir_path = os.path.dirname(log_file_path)
+    log_dir = Path(log_dir_path)
+    if not log_dir.exists():
+        os.mkdir(log_dir_path)
+
+    # 创建一个logger，并设置日志级别
+    _logger = logging.getLogger()
+    _logger.setLevel(logging.DEBUG)
+
+    # 设置滚动文件10M
+    rfh = handlers.RotatingFileHandler(
+        log_file_path,
+        mode='a',
+        maxBytes=10 * 1024 * 1024,
+        backupCount=1,
+        encoding=None,
+        delay=False
+    )
+    rfh.setLevel(logging.INFO)
+
+    # 创建一个handler，用于将日志输出到控制台，并设置日志级别
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+
+    # 定义handler的输出格式
+    formatter = logging.Formatter(
+        '%(asctime)s-%(name)s-[%(filename)s:%(lineno)d]''-[%(levelname)s]: %(message)s')
+    rfh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+
+    # 给logger添加handler
+    _logger.addHandler(rfh)
+    _logger.addHandler(ch)
+
+    return _logger
+
+
+logger = get_logger()
 if CURRENT_PLATFORM.lower() == 'darwin':
     PING_TIMEOUT = '-t 5'
-
-if CURRENT_PLATFORM.lower() == 'darwin':
-    logger = get_logger("./logs/monitor.log")
 elif CURRENT_PLATFORM.lower() == 'linux':
-    logger = get_logger()
+    PING_TIMEOUT = '-w 5'
 else:
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    pass
+
+def get_vm_identity_arn():
+    # vm hostname
+    hostname = socket.gethostname()
+    # vm ip
+    ip = socket.gethostbyname(hostname)
+    # vm mac address
+    mac = uuid.UUID(int=uuid.getnode()).hex[-12:]
+    mac_address = ":".join([mac[e:e + 2] for e in range(0, 11, 2)])
+    # ('02:78:e9:8a:50:28', '192.168.216.11', 'ip-192-168-216-11.cn-north-1.compute.internal')
+    # return mac_address, ip, hostname
+    return ip
 
 
 def filter_allow(i):
@@ -187,7 +236,7 @@ def do_task(event):
     ips_thread_pool = ThreadPoolExecutor(len(ping_ips), thread_name_prefix='ip_pool')
     t_start = time.time()
     t_end = t_start + TASK_RUN_TIME
-    lock_uuid = str(uuid1())
+    lock_uuid = str(uuid.uuid1())
     try:
         lock_resource(group_name, lock_uuid)
 
@@ -284,7 +333,36 @@ def do_task(event):
     logger.info(f'do_task complete current_group :{current_group} , cost time - {time.time() - t_start:.4f}s')
 
 
+def get_sqs_with_vm(local_vm_identity):
+    local_ping_queue = None
+    logger.info(f'vm identity is : {local_vm_identity}')
+    sqs_ping_queue_list = queue_resource.queues.filter(
+        QueueNamePrefix='ping_queue_',
+        MaxResults=100
+    )
+    for sqs_item in sqs_ping_queue_list:
+        sqs_item_tags = queue_client.list_queue_tags(
+            QueueUrl=sqs_item.url
+        )
+        if sqs_item_tags.get('Tags') and sqs_item_tags.get('Tags').get('vm_identity') == local_vm_identity:
+            local_ping_queue = sqs_item
+            break
+    return local_ping_queue
+
+
 if __name__ == '__main__':
+    """
+    TODO LIST
+    1. Lock the method `calling actor`
+    """
+    vm_identity = str(get_vm_identity_arn())
+    # vm_identity = '127.0.0.1'
+    ping_queue = get_sqs_with_vm(vm_identity)
+    logger.info(f'ping_queue is {ping_queue}')
+    if not ping_queue:
+        msg = f'No quota available for ping_queue SQS in sqs_table , vm_identity : {vm_identity} !!'
+        logger.error(msg)
+        raise Exception(msg)
     thread_pool = ThreadPoolExecutor(20, thread_name_prefix='task_pool')
 
     while True:
