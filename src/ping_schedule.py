@@ -11,7 +11,6 @@ import boto3
 
 
 def lambda_handler(event, context):
-    print(boto3.client('sts').get_caller_identity())
     queue_resource = boto3.resource(
         'sqs',
         region_name='cn-north-1'

@@ -1,32 +1,4 @@
-import boto3
-import json
-
-queue_resource = boto3.resource(
-    'sqs',
-    aws_access_key_id='AKIAUK7LDPSVOWZAH57B',
-    aws_secret_access_key='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',
-    region_name='cn-north-1'
-)
-# queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
-queue = queue_resource.get_queue_by_name(QueueName='action_queue')
-
-
-def acl_close():
-    action_body = {'action': 'acl-close'}
-    queue.send_message(
-        MessageBody=json.dumps(action_body),
-        DelaySeconds=0,
-    )
-
-
-def acl_open():
-    action_body = {'action': 'acl-open'}
-    queue.send_message(
-        MessageBody=json.dumps(action_body),
-        DelaySeconds=0,
-    )
-
+from src import ping_action
 
 if __name__ == '__main__':
-    acl_close()
-    # test_open()
+    ping_action.lambda_handler({'Records': [{'EventSource': 'aws:sns', 'EventVersion': '1.0', 'EventSubscriptionArn': 'arn:aws-cn:sns:cn-north-1:298456415402:ping_action:f4077c41-7687-423b-9ab2-f0611d81816a', 'Sns': {'Type': 'Notification', 'MessageId': '5d491515-415f-5ad9-aafa-492c31a12785', 'TopicArn': 'arn:aws-cn:sns:cn-north-1:298456415402:ping_action', 'Subject': 'ping_action', 'Message': '{"action": "acl-close"}', 'Timestamp': '2023-01-12T02:21:50.359Z', 'SignatureVersion': '1', 'Signature': 'E5K0lAFt8SVetoKutt1cHNfnN0kBKyUhN5KhSVXBTAVSSarflxnH0b9KtyM0VQdU6hacblwOoBWOkLkq79SaxuDC6CTKHzTV1bf333fErxNupuMuNjg/v3c52TUWbp16tumlwIJEHJ4lfDW19GH5P7W9eLMUqETCOFXeqRjcLKdstE5W0Cg71HqoBRO62MBFg2pjkQXDpqChG5mkZFwZ6I4epVHZduQJF1CCemVcu+2wkPES6YJclq7GKQZ0FUDLqfVW3t7hJiq0QnvuYKfxqa2i1laHRMVHZWy7/Bnw5QRyBN4tavlM7K6roRF4GizlpHfZjR+n+qArQtTAJmSE5A==', 'SigningCertUrl': 'https://sns.cn-north-1.amazonaws.com.cn/SimpleNotificationService-0964fd8537e03dce7feb23f5e3acfc76.pem', 'UnsubscribeUrl': 'https://sns.cn-north-1.amazonaws.com.cn/?Action=Unsubscribe&SubscriptionArn=arn:aws-cn:sns:cn-north-1:298456415402:ping_action:f4077c41-7687-423b-9ab2-f0611d81816a', 'MessageAttributes': {}}}]},{})

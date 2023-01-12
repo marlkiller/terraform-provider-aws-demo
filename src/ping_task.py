@@ -40,6 +40,9 @@ queue_client = boto3.client(
 )
 acton_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
 
+sns_client = boto3.client('sns')
+
+
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
 acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
 status_table = boto3.resource('dynamodb').Table('network_monitor_status')
@@ -289,11 +292,21 @@ def do_task(event):
 
             if action:
                 action_body = {'action': action}
-                acton_queue.send_message(
-                    MessageBody=json.dumps(action_body),
-                    DelaySeconds=0,
+                # acton_queue.send_message(
+                #     MessageBody=json.dumps(action_body),
+                #     DelaySeconds=0,
+                # )
+                sns_client.publish_batch(
+                    TopicArn='arn:aws-cn:sns:cn-north-1:298456415402:ping_action',
+                    PublishBatchRequestEntries=[
+                        {
+                            'Id': str(uuid.uuid1()),
+                            'Message': json.dumps(action_body),
+                            'Subject': 'ping_action',
+                        },
+                    ]
                 )
-                logger.info(f'acton_queue send  {action_body}')
+                logger.info(f'acton_sns send  {action_body}')
                 # time.sleep(2)
                 # action_body = {}
                 # db_acl = acl_table.get_item(
@@ -355,8 +368,8 @@ if __name__ == '__main__':
     TODO LIST
     1. Lock the method `calling actor`
     """
-    vm_identity = str(get_vm_identity_arn())
-    # vm_identity = '127.0.0.1'
+    # vm_identity = str(get_vm_identity_arn())
+    vm_identity = '127.0.0.1'
     ping_queue = get_sqs_with_vm(vm_identity)
     logger.info(f'ping_queue is {ping_queue}')
     if not ping_queue:

@@ -82,9 +82,9 @@ def lambda_handler(event, context):
     print(event)
     re = event['Records'][0]
     if re:
-        event_source = re.get('eventSource')
-        if event_source == "aws:sqs":
-            body = json.loads(re.get("body", {}))
+        event_source = re.get('EventSource')
+        if event_source == "aws:sns":
+            body = json.loads(re.get("Sns", {}).get('Message'))
             action = body.get('action', "")
 
             if action == "acl-close":
