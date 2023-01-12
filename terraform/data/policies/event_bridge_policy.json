@@ -1,0 +1,9 @@
+{
+  "Sid": "__EVENTBRIDGE_statement_ID",
+  "Effect": "Allow",
+  "Principal": {
+    "Service": "events.amazonaws.com"
+  },
+  "Action": "sns:Publish",
+  "Resource": "*"
+}

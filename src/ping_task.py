@@ -296,6 +296,10 @@ def do_task(event):
                 #     MessageBody=json.dumps(action_body),
                 #     DelaySeconds=0,
                 # )
+                """
+                TODO LIST
+                1. 上锁
+                """
                 sns_client.publish_batch(
                     TopicArn='arn:aws-cn:sns:cn-north-1:298456415402:ping_action',
                     PublishBatchRequestEntries=[
@@ -307,28 +311,6 @@ def do_task(event):
                     ]
                 )
                 logger.info(f'acton_sns send  {action_body}')
-                # time.sleep(2)
-                # action_body = {}
-                # db_acl = acl_table.get_item(
-                #     Key={'arn': 'acl-0d5098dea8ba07575'}
-                # ).get('Item')
-                # if action == 'acl-close':
-                #     if db_acl and db_acl.get('status') == 'deny':
-                #         logger.info("already closed , ignore")
-                #         continue
-                #     action_body['action'] = action
-                # elif action == 'acl-open':
-                #     if db_acl and db_acl.get('status') == 'allow':
-                #         logger.info("already opened , ignore")
-                #         continue
-                #     action_body['action'] = action
-                # if action_body.get('action'):
-                #     acton_queue.send_message(
-                #         MessageBody=json.dumps(action_body),
-                #         DelaySeconds=0,
-                #     )
-                #     logger.info(f'acton_queue send  {action_body}')
-                #     time.sleep(2)
     except ConflictException as e:
         logger.error(e)
     except Exception as e:
@@ -347,6 +329,11 @@ def do_task(event):
 
 
 def get_sqs_with_vm(local_vm_identity):
+    """
+    linux : ec2-metadata -i
+    ubuntu : ec2metadata --instance-id
+    instance-id: i-0d6798f7153de256b
+    """
     local_ping_queue = None
     logger.info(f'vm identity is : {local_vm_identity}')
     sqs_ping_queue_list = queue_resource.queues.filter(
@@ -366,10 +353,11 @@ def get_sqs_with_vm(local_vm_identity):
 if __name__ == '__main__':
     """
     TODO LIST
-    1. Lock the method `calling actor`
+    1. ec2 启动时候， 根据 实例 ip 注册到 dynamodb
+    2. 创建一个 lambda ， 接受 ping_task sqs , 通过 http [flask] 群发消息给 EC2
     """
-    # vm_identity = str(get_vm_identity_arn())
-    vm_identity = '127.0.0.1'
+    vm_identity = str(get_vm_identity_arn())
+    # vm_identity = '127.0.0.1'
     ping_queue = get_sqs_with_vm(vm_identity)
     logger.info(f'ping_queue is {ping_queue}')
     if not ping_queue:

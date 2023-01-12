@@ -1,0 +1,5 @@
+region         = "cn-north-1"
+bucket         = "tf-state-558715975237-cn-north-1"
+dynamodb_table = "tf-state-558715975237-cn-north-1"
+key            = "traffic-network/prod/cn-north-1/lambda_layers.tfstate"
+profile        = "558715975237_UserFull"

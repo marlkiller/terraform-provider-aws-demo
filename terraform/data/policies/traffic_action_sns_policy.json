@@ -1,0 +1,24 @@
+{
+  "Sid": "traffic_action_sns_policy_ID",
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": "*"
+  },
+  "Action": [
+    "SNS:Subscribe",
+    "SNS:SetTopicAttributes",
+    "SNS:RemovePermission",
+    "SNS:Receive",
+    "SNS:Publish",
+    "SNS:ListSubscriptionsByTopic",
+    "SNS:GetTopicAttributes",
+    "SNS:DeleteTopic",
+    "SNS:AddPermission"
+  ],
+  "Resource": "*",
+  "Condition": {
+    "StringEquals": {
+      "AWS:SourceOwner": "${account_id}"
+    }
+  }
+}

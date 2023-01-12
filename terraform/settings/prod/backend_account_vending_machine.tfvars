@@ -1,0 +1,5 @@
+region         = "cn-north-1"
+bucket         = "tf-state-558715975237-cn-north-1"
+dynamodb_table = "tf-state-558715975237-cn-north-1"
+key            = "account-vending-machine/prod/cn-north-1/account_vending_machine.tfstate"
+profile        = "558715975237_UserFull"
