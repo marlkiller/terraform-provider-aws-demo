@@ -143,8 +143,10 @@ module "lambda_functions" {
           source_arn        = module.sqs.queues.traffic-ping-task.arn
         }
       }
-      subnet_ids         = []
-      security_group_ids = []
+#      subnet_ids         = []
+#      security_group_ids = []
+      subnet_ids         = var.lambda_subnet_ids
+      security_group_ids = var.lambda_security_group_ids
     }
 #    four-wheels-deployment = {
 #      runtime = var.lambda_python_runtime

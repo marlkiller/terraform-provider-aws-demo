@@ -18,9 +18,10 @@ cd ${project_root_dir}/scripts/
 
 # iam role
 sh deploy.sh 413236434696_UserFull ${ssp_env} common_account_infra
-
 # sqs,sns,event_bridge[event],lambda
 sh deploy.sh 413236434696_UserFull ${ssp_env} backend
+# ec2
+sh deploy.sh 413236434696_UserFull ${ssp_env} ec2
 
 sh full_deploy.sh 413236434696_UserFull ${ssp_env}
 

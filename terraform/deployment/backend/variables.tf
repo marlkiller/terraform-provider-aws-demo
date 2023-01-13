@@ -6,6 +6,16 @@ variable "aws_region" {
   description = "AWS region"
 }
 
+variable "lambda_subnet_ids" {
+  type        = list(string)
+  description = "Subnet ids for Lambda functions wich runs in a VPC"
+}
+
+variable "lambda_security_group_ids" {
+  type        = list(string)
+  description = "Security Group ids for Lambda functions wich runs in a VPC"
+}
+
 variable "aws_profile" {
   type        = string
   description = "AWS profile which is used for the deployment"

@@ -5,6 +5,15 @@
 aws_profile = "413236434696_UserFull"
 aws_region  = "cn-north-1"
 
+lambda_subnet_ids         = ["subnet-0a182f0faded09196", "subnet-0f73b038c96aea7ed"]
+lambda_security_group_ids = ["sg-0ee837190a458056e"]
+
+instance_name = "traffic_instance"
+instance_type = "t3.micro"
+ec2_subnet_id         = "subnet-0a182f0faded09196"
+ami         = "ami-0bf2183ba2c3b50f9"
+iam_instance_profile = "AmazonSSMRoleForInstancesQuickSetup"
+
 tags = {
   environment = "int-cn"
   project     = "Network Monitor - China"
@@ -21,7 +30,7 @@ prefix            = "int-cn"
 ##############################################
 
 #api_gateway_role_name        = "int-cn-traffic-network-apigateway-logs"
-lambda_role_name             = "TrafficLambdaAutomation"
+lambda_role_name = "TrafficLambdaAutomation"
 #nuke_account_role_name       = "int-cn-traffic-network-nuke-account-role"
 #stepfunction_role_name       = "int-cn-traffic-network-stepfunction-role"
 #vpc_id                       = "vpc-018e400fd8fb9cf0a"

@@ -23,12 +23,14 @@ module "iam" {
 #    "arn:aws-cn:iam::aws:policy/service-role/AWSLambdaENIManagementAccess",
     "arn:aws-cn:iam::aws:policy/AmazonSQSFullAccess",
     "arn:aws-cn:iam::aws:policy/AmazonSNSFullAccess",
+    "arn:aws-cn:iam::aws:policy/AmazonSNSFullAccess",
     "arn:aws-cn:iam::aws:policy/CloudWatchFullAccess",
     "arn:aws-cn:iam::aws:policy/AmazonEventBridgeFullAccess",
     "arn:aws-cn:iam::aws:policy/AmazonDynamoDBFullAccess",
     "arn:aws-cn:iam::aws:policy/AmazonSSMReadOnlyAccess",
     "arn:aws-cn:iam::aws:policy/AWSLambdaRole",
     "arn:aws-cn:iam::aws:policy/AWSLambdaBasicExecutionRole",
+    "arn:aws-cn:iam::aws:policy/AmazonEC2FullAccess",
   ]
 
   tags = var.tags
