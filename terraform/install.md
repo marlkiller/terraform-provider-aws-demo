@@ -16,8 +16,11 @@ rm -rf ${project_root_dir}/build
 
 cd ${project_root_dir}/scripts/
 
-sh deploy.sh 455817415969_UserFull ${ssp_env} common_account_infra
-sh deploy.sh 455817415969_UserFull ${ssp_env} backend
+sh deploy.sh 413236434696_UserFull ${ssp_env} common_account_infra
+sh deploy.sh 413236434696_UserFull ${ssp_env} backend
+
+sh full_deploy.sh 413236434696_UserFull ${ssp_env}
+
 
 ## install iam
 

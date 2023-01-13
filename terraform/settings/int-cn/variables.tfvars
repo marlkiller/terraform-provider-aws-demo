@@ -2,7 +2,7 @@
 # GENERAL INFORMATION
 ##############################################
 
-aws_profile = "455817415969_UserFull"
+aws_profile = "413236434696_UserFull"
 aws_region  = "cn-north-1"
 
 tags = {
@@ -83,7 +83,7 @@ import_prefix = "int-cn"
 ##############################################
 
 # ATTENTION: value for cognito_user_pool_arn is the output value of the cognito deployment
-#cognito_user_pool_arn = "arn:aws-cn:cognito-idp:cn-north-1:455817415969:userpool/cn-north-1_O3HbJbRXE"
+#cognito_user_pool_arn = "arn:aws-cn:cognito-idp:cn-north-1:413236434696:userpool/cn-north-1_O3HbJbRXE"
 
 lambda_logging_level                     = "DEBUG"
 enable_cloudwatch_rules                  = true
