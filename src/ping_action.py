@@ -47,7 +47,7 @@ def close_acl(acl_id):
     # acl_table.put_item(Item={
     #     'arn': ACL_ID,
     #     'status': 'deny',
-    #     'update_tile': str_now_time()
+    #     'update_time': str_now_time()
     # })
 
 
@@ -70,7 +70,7 @@ def open_acl(acl_id):
     # acl_table.put_item(Item={
     #     'arn': ACL_ID,
     #     'status': 'allow',
-    #     'update_tile': str_now_time()
+    #     'update_time': str_now_time()
     # })
 
 
@@ -95,8 +95,3 @@ def lambda_handler(event, context):
                 open_acl(ACL_ID)
 
     print(f"触发时间: {datetime.now()}")
-
-
-if __name__ == '__main__':
-    # close_acl(ACL_ID)
-    pass

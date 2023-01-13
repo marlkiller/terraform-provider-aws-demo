@@ -1,60 +1,60 @@
 import json
 import logging
 import os
+import platform
 import random
 import re
 import socket
 import time
 import traceback
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from logging import handlers
+from pathlib import Path
 from subprocess import getoutput
-import platform
+
 import boto3
 from boto3.dynamodb.conditions import Attr
-import uuid
-from pathlib import Path
+from flask import Response, request, Flask
 
 """
 pip3 install boto3
+pip3 install flask
 """
+
+app = Flask(__name__)
+thread_pool = ThreadPoolExecutor(10)
 
 os.putenv('TZ', 'Asia/Shanghai')
 time.tzset()
 
-ACL_ID = "acl-0d5098dea8ba07575"
+ec2_client = boto3.client('ec2')
 
-ec2_client = boto3.client(
-    'ec2',
-    region_name='cn-north-1'
-)
-
-queue_resource = boto3.resource(
-    'sqs',
-    region_name='cn-north-1'
-)
-queue_client = boto3.client(
-    'sqs',
-    region_name='cn-north-1'
-)
+queue_resource = boto3.resource('sqs')
+queue_client = boto3.client('sqs')
 acton_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
-
 sns_client = boto3.client('sns')
-
 
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
 acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
 status_table = boto3.resource('dynamodb').Table('network_monitor_status')
+vm_status_table = boto3.resource('dynamodb').Table('network_monitor_vm')
 
 FMT_PATTERN = "%Y-%m-%d %H:%M:%S"
-
 PING_COUNT = 4
-
 TASK_RUN_TIME = 120
 SUCCESS_DIFF = 300
-
 CURRENT_PLATFORM = platform.system()
+
+if CURRENT_PLATFORM.lower() == 'darwin':
+    PING_TIMEOUT = '-t 5'
+elif CURRENT_PLATFORM.lower() == 'linux':
+    PING_TIMEOUT = '-w 5'
+else:
+    pass
+
+ACL_ID = "acl-0d5098dea8ba07575"
 
 
 def get_logger(log_file_path: str = "./monitor.log"):
@@ -97,24 +97,28 @@ def get_logger(log_file_path: str = "./monitor.log"):
 
 
 logger = get_logger()
-if CURRENT_PLATFORM.lower() == 'darwin':
-    PING_TIMEOUT = '-t 5'
-elif CURRENT_PLATFORM.lower() == 'linux':
-    PING_TIMEOUT = '-w 5'
-else:
-    pass
+
 
 def get_vm_identity_arn():
+    """
+       linux : ec2-metadata -i
+       ubuntu : ec2metadata --instance-id
+       instance-id: i-0d6798f7153de256b
+    """
     # vm hostname
-    hostname = socket.gethostname()
+    # hostname = socket.gethostname()
     # vm ip
-    ip = socket.gethostbyname(hostname)
+    # ip = socket.gethostbyname(hostname)
     # vm mac address
-    mac = uuid.UUID(int=uuid.getnode()).hex[-12:]
-    mac_address = ":".join([mac[e:e + 2] for e in range(0, 11, 2)])
+    # mac = uuid.UUID(int=uuid.getnode()).hex[-12:]
+    # mac_address = ":".join([mac[e:e + 2] for e in range(0, 11, 2)])
     # ('02:78:e9:8a:50:28', '192.168.216.11', 'ip-192-168-216-11.cn-north-1.compute.internal')
     # return mac_address, ip, hostname
-    return ip
+    instance_id = getoutput('ec2-metadata -i')
+    if instance_id.__contains__('i-'):
+        return instance_id
+    else:
+        return None
 
 
 def filter_allow(i):
@@ -232,6 +236,12 @@ def get_remaining_seconds(lock_date):
 
 
 def do_task(event):
+    """
+    {
+        "ping_ips":["127.0.0.1"],
+        "name":"group_name"
+    }    
+    """
     logger.info(f'do_task event : {event}')
     current_group = json.loads(event)
     ping_ips = current_group.get('ping_ips', [])
@@ -292,10 +302,6 @@ def do_task(event):
 
             if action:
                 action_body = {'action': action}
-                # acton_queue.send_message(
-                #     MessageBody=json.dumps(action_body),
-                #     DelaySeconds=0,
-                # )
                 """
                 TODO LIST
                 1. 上锁
@@ -328,47 +334,27 @@ def do_task(event):
     logger.info(f'do_task complete current_group :{current_group} , cost time - {time.time() - t_start:.4f}s')
 
 
-def get_sqs_with_vm(local_vm_identity):
-    """
-    linux : ec2-metadata -i
-    ubuntu : ec2metadata --instance-id
-    instance-id: i-0d6798f7153de256b
-    """
-    local_ping_queue = None
+def put_vm_identity():
+    local_vm_identity = get_vm_identity_arn()
+    # local_vm_identity = 'local'
+    if not local_vm_identity:
+        raise Exception("local_vm_identity is null")
     logger.info(f'vm identity is : {local_vm_identity}')
-    sqs_ping_queue_list = queue_resource.queues.filter(
-        QueueNamePrefix='ping_queue_',
-        MaxResults=100
-    )
-    for sqs_item in sqs_ping_queue_list:
-        sqs_item_tags = queue_client.list_queue_tags(
-            QueueUrl=sqs_item.url
-        )
-        if sqs_item_tags.get('Tags') and sqs_item_tags.get('Tags').get('vm_identity') == local_vm_identity:
-            local_ping_queue = sqs_item
-            break
-    return local_ping_queue
+    vm_status_table.put_item(Item={
+        'arn': local_vm_identity,
+        'update_time': str_now_time(),
+        'receive_messages_url': f"http://{socket.gethostbyname(socket.gethostname())}:8080/receive_messages",
+    })
 
+
+@app.route('/receive_messages', methods=['POST', 'GET'])
+def welcome():
+    rep = Response(json.dumps({}), content_type='application/json', status=200)
+    thread_pool.submit(do_task, request.data.decode('utf-8'))
+    return rep
+
+
+put_vm_identity()
 
 if __name__ == '__main__':
-    """
-    TODO LIST
-    1. ec2 启动时候， 根据 实例 ip 注册到 dynamodb
-    2. 创建一个 lambda ， 接受 ping_task sqs , 通过 http [flask] 群发消息给 EC2
-    """
-    vm_identity = str(get_vm_identity_arn())
-    # vm_identity = '127.0.0.1'
-    ping_queue = get_sqs_with_vm(vm_identity)
-    logger.info(f'ping_queue is {ping_queue}')
-    if not ping_queue:
-        msg = f'No quota available for ping_queue SQS in sqs_table , vm_identity : {vm_identity} !!'
-        logger.error(msg)
-        raise Exception(msg)
-    thread_pool = ThreadPoolExecutor(20, thread_name_prefix='task_pool')
-
-    while True:
-        msg = ping_queue.receive_messages()
-        if msg and len(msg) > 0:
-            logger.info(f'ping_queue receive msg  {len(msg)}')
-            for item in msg:
-                thread_pool.submit(do_task, item.body)
+    app.run(host='0.0.0.0', port=8080)
