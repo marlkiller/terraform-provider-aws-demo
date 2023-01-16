@@ -1,12 +1,27 @@
-## TODO - rethink on how to store all the SSM we are currently using and choose between:
-## 1 - make an ad-hoc deployment for it
-## 2 - incorporate them in the portal config section
-## Also several changes to the code base need to be done eventually
+
+module "traffic_config_param" {
+  source = "../../modules/ssm_parameter"
+
+  parameter_name        = "${local.parameter_prefix}${var.ssm_parameter_traffic_config}"
+  parameter_description = "API contract data for Mailtools ticket creation"
+  parameter_value = jsonencode(
+    {
+      "name": "group_PE",
+      "ping_ips": [
+        "192.168.201.34",
+        "192.168.201.30"
+      ],
+      "acl_id": "acl-0d5098dea8ba07575"
+    }
+  )
+  tags = var.tags
+}
+
 #
 #module "itsm_param" {
 #  source = "../../modules/ssm_parameter"
 #
-#  parameter_name        = "${local.ssm_parameter_prefix}${var.ssm_parameter_itsm_contract_data}"
+#  parameter_name        = "${local.parameter_prefix}${var.ssm_parameter_itsm_contract_data}"
 #  parameter_description = "ITSM contract data for ticket creation"
 #  parameter_value = jsonencode(
 #    {
@@ -24,7 +39,7 @@
 #module "tufin_param" {
 #  source = "../../modules/ssm_parameter"
 #
-#  parameter_name        = "${local.ssm_parameter_prefix}${var.ssm_parameter_tufin_data}"
+#  parameter_name        = "${local.parameter_prefix}${var.ssm_parameter_tufin_data}"
 #  parameter_description = "TUFIN contract data for VPC decommission"
 #  parameter_value = jsonencode(
 #    {
@@ -42,7 +57,7 @@
 #module "sbus_param" {
 #  source = "../../modules/ssm_parameter"
 #
-#  parameter_name        = "${local.ssm_parameter_prefix}${var.ssm_parameter_sbus_contract_data}"
+#  parameter_name        = "${local.parameter_prefix}${var.ssm_parameter_sbus_contract_data}"
 #  parameter_description = "SBUS contract data for cloudroom creation, application relation and network relation"
 #  parameter_value = jsonencode(
 #    {
@@ -57,7 +72,7 @@
 #module "sbus_token_param" {
 #  source = "../../modules/ssm_parameter"
 #
-#  parameter_name        = "${local.ssm_parameter_prefix}${var.ssm_parameter_sbus_token_contract_data}"
+#  parameter_name        = "${local.parameter_prefix}${var.ssm_parameter_sbus_token_contract_data}"
 #  parameter_description = "SBUS token contract data to retrieve access token"
 #  parameter_value = jsonencode(
 #    {
@@ -78,37 +93,11 @@
 #  tags = var.tags
 #}
 #
-#module "mailtools_param" {
-#  source = "../../modules/ssm_parameter"
-#
-#  parameter_name        = "${local.ssm_parameter_prefix}${var.ssm_parameter_mailtools_data}"
-#  parameter_description = "API contract data for Mailtools ticket creation"
-#  parameter_value = jsonencode(
-#    {
-#      "url" : "https://mailtools-api.bmwgroup.net/",
-#      "endpoints" : {
-#        "request_dl" : "/api/listserv/CreateDistributionGroupRequest",
-#        "new_member" : "/api/listserv/addMember",
-#        "remove_member" : "/api/listserv/removeMember",
-#        "check_creation_workflow" : "/api/listserv/status/",
-#        "check_update_workflow" : "/api/mailtools/status/",
-#        "dl_members" : "/api/listserv/members/"
-#      },
-#      "basic_auth" : {
-#        "user" : "muc/QQMAPI0",
-#        "pwd" : "replaceme"
-#      }
-#      "verify" : false
-#    }
-#  )
-#
-#  tags = var.tags
-#}
 #
 #module "bmw_mail_param" {
 #  source = "../../modules/ssm_parameter"
 #
-#  parameter_name        = "${local.ssm_parameter_prefix}${var.ssm_parameter_bmw_internal_mail}"
+#  parameter_name        = "${local.parameter_prefix}${var.ssm_parameter_bmw_internal_mail}"
 #  parameter_description = "API contract data for Mailtools ticket creation"
 #  parameter_value = jsonencode(
 #    {

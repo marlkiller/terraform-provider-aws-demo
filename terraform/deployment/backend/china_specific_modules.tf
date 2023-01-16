@@ -75,7 +75,7 @@
 #  source = "../../modules/ssm_parameter"
 #  tags   = merge(var.tags, try(each.value.tags, {}))
 #
-#  parameter_name        = "${local.ssm_parameter_prefix}${each.value.ssm_parameter_datadog_contract_data}"
+#  parameter_name        = "${local.parameter_prefix}${each.value.ssm_parameter_datadog_contract_data}"
 #  parameter_description = "Datadog contract data for credential rotation"
 #  parameter_value = jsonencode(
 #    {

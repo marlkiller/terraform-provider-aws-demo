@@ -1,5 +1,6 @@
 import _thread
 import json
+import os
 import urllib.request
 import urllib.parse
 
@@ -12,7 +13,7 @@ import boto3
 """
 
 vm_status_table = boto3.resource('dynamodb').Table('network_monitor_vm')
-queue_resource = boto3.resource('sqs')
+ssm_client = boto3.client('ssm')
 
 
 def url_lib_post(url, body):
@@ -27,39 +28,29 @@ def url_lib_post(url, body):
 
 
 def lambda_handler(event, context):
-    ip_groups = [{
-        'name': 'group_PE',
-        'ping_ips': [
-            '192.168.201.34',
-            '192.168.201.30',
-        ]
-    }]
+    """
+    {
+        "name": "group_PE",
+        "ping_ips": [
+            "192.168.201.34",
+            "192.168.201.30"
+        ],
+        "acl_id": "acl-0d5098dea8ba07575"
+    } 
+    """
+    traffic_config = ssm_client.get_parameter(
+        Name=os.getenv('TRAFFIC_CONFIG'),
+        WithDecryption=True
+    )['Parameter']['Value']
+    ip_group = json.loads(traffic_config)
     vm_list = vm_status_table.scan()['Items']
     if not vm_list:
         raise Exception("vm_list is null")
     for vm in vm_list:
-        for ip_group in ip_groups:
-            print(f"url_lib_post : {vm.get('receive_messages_url')},{ip_group}")
-            _thread.start_new_thread(url_lib_post, (vm.get('receive_messages_url'), ip_group))
-
-    # sqs_ping_queue_list = queue_resource.queues.filter(
-    #     QueueNamePrefix='ping_queue_',
-    #     MaxResults=100
-    # )
-    # for sqs_item in sqs_ping_queue_list:
-    #     for item in ip_groups:
-    #         print(f'sqs : {sqs_item}, msg : {item}')
-    #         sqs_item.send_message(
-    #             MessageBody=json.dumps(item),
-    #             DelaySeconds=0,
-    #             # MessageGroupId=str(uuid.uuid1()), # fifo need
-    #         )
+        print(f"url_lib_post : {vm.get('receive_messages_url')},{ip_group}")
+        _thread.start_new_thread(url_lib_post, (vm.get('receive_messages_url'), ip_group))
 
     return {
         'statusCode': 200,
         'body': json.dumps('Hello from Lambda!')
     }
-
-
-if __name__ == '__main__':
-    lambda_handler({}, {})

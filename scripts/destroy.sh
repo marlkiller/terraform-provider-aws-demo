@@ -25,7 +25,5 @@ ENVIRONMENTS_FOLDER="$DIR/../terraform/settings"
 
 pushd $DEPLOYMENT_FOLDER || exit
 
-/Users/artemis/Documents/command/terraform_1.3.7/terraform init -reconfigure -backend-config="$ENVIRONMENTS_FOLDER/$ENVIRONMENT/backend_$COMPONENT.tfvars"
-/Users/artemis/Documents/command/terraform_1.3.7/terraform apply -auto-approve -lock=false -var-file="$ENVIRONMENTS_FOLDER/$ENVIRONMENT/variables.tfvars"
-#terraform apply -auto-approve
+/Users/artemis/Documents/command/terraform_1.3.7/terraform destroy -auto-approve -lock=false -var-file="$ENVIRONMENTS_FOLDER/$ENVIRONMENT/variables.tfvars"
 popd || exit

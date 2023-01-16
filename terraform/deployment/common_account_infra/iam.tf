@@ -28,8 +28,9 @@ module "iam" {
     "arn:aws-cn:iam::aws:policy/AmazonEventBridgeFullAccess",
     "arn:aws-cn:iam::aws:policy/AmazonDynamoDBFullAccess",
     "arn:aws-cn:iam::aws:policy/AmazonSSMReadOnlyAccess",
-    "arn:aws-cn:iam::aws:policy/AWSLambdaRole",
-    "arn:aws-cn:iam::aws:policy/AWSLambdaBasicExecutionRole",
+    "arn:aws-cn:iam::aws:policy/AWSLambda_FullAccess",
+#    "arn:aws-cn:iam::aws:policy/AWSLambdaRole",
+#    "arn:aws-cn:iam::aws:policy/AWSLambdaBasicExecutionRole",
     "arn:aws-cn:iam::aws:policy/AmazonEC2FullAccess",
   ]
 

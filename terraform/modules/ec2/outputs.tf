@@ -1,12 +1,12 @@
 output "id" {
   description = "The ID of the instance"
   #  value       = try(aws_instance.this[0].id, aws_spot_instance_request.this[0].id, "")
-  value       = aws_instance.web.id
+  value       = aws_instance.item_instance.id
 }
 
 output "arn" {
   description = "The ARN of the instance"
-  value       = aws_instance.web.arn
+  value       = aws_instance.item_instance.arn
   #  value       = try(aws_instance.this[0].arn, aws_spot_instance_request.this[0].arn, "")
 }
 #

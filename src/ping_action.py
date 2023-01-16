@@ -9,8 +9,6 @@ import json
 os.putenv('TZ', 'Asia/Shanghai')
 time.tzset()
 
-ACL_ID = "acl-0d5098dea8ba07575"
-
 client = boto3.client(
     'ec2',
     region_name='cn-north-1'
@@ -86,12 +84,13 @@ def lambda_handler(event, context):
         if event_source == "aws:sns":
             body = json.loads(re.get("Sns", {}).get('Message'))
             action = body.get('action', "")
+            acl_id = body.get('acl_id')
 
             if action == "acl-close":
                 logging.debug("closing")
-                close_acl(ACL_ID)
+                close_acl(acl_id)
             if action == "acl-open":
                 logging.debug("opening")
-                open_acl(ACL_ID)
+                open_acl(acl_id)
 
-    print(f"触发时间: {datetime.now()}")
+    print(f"trigger time : {datetime.now()}")

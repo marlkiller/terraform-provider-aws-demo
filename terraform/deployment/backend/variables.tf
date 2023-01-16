@@ -71,7 +71,7 @@ variable "lambda_logging_level" {
 
 variable "lambda_log_retention_days" {
   type        = number
-  default     = 30
+  default     = 180
   description = <<EOF
     Specifies the number of days you want to retain log events in the specific lambda log group.
     Possible values are: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653
@@ -182,11 +182,11 @@ variable "enable_cloudwatch_rules" {
 #  description = "The AWS account id for the BMW DevOps 4wheels - KAAS - Automation Backend (to send data into our SQS queues)"
 #}
 #
-#variable "ssm_parameter_mailtools_data" {
-#  type        = string
-#  default     = "mailtools.data"
-#  description = "SSM Name of the Parameter which contains MAILTOOLS API details"
-#}
+variable "ssm_parameter_traffic_config" {
+  type        = string
+  default     = "traffic.config"
+  description = "SSM Name of the Parameter which contains MAILTOOLS API details"
+}
 #
 ## Email templates
 #variable "email_templates_prefix" {

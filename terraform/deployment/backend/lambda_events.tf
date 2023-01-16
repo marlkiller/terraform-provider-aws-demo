@@ -1,4 +1,4 @@
-#locals {
+locals {
 #  update_dynamodb_account_info = templatefile("../../data/event_bridge_rules_inputs/account-information-dynamodb-to-sqs-event-input.json",
 #    {
 #      queue_url  = module.sqs.queues.traffic-ping-task.id
@@ -53,22 +53,24 @@
 #      table_name = local.dynamodb_tables["account-information"].id
 #    }
 #  )
-#}
-#
-#module "events" {
-#  source = "../../modules/lambda_events"
-#
-#  prefix = var.prefix
-#  tags   = var.tags
-#
-#  cloudwatch_rules_specs = {
-#    check-account-suspension = {
-#      description         = "Check all AWS Accounts in Stage 'basic' for a valid APP-Id and LSV/Planpositionnumber. Notifies the Account Responsibles before the Account gets suspended"
-#      schedule_expression = "cron(0 4 * * ? *)"
-#      lambda_key          = "check-account-suspension"
-#      input               = "{}"
-#      is_enabled          = var.enable_cloudwatch_rules
-#    }
+}
+
+module "events" {
+  source = "../../modules/lambda_events"
+
+  prefix = var.prefix
+  tags   = var.tags
+
+  cloudwatch_rules_specs = {
+    traffic-schedule = {
+      description         = "Check all AWS Accounts in Stage 'basic' for a valid APP-Id and LSV/Planpositionnumber. Notifies the Account Responsibles before the Account gets suspended"
+#      schedule_expression = "cron(0 23 * * ? *)"
+#      schedule_expression = "rate(5 minutes)"
+      schedule_expression = "rate(1 minute)"
+      lambda_key          = "ping-task-dev"
+      input               = "{}"
+      is_enabled          = var.enable_cloudwatch_rules
+    }
 #    check-free-cidrs = {
 #      description         = "Check against DynamoDB how many free reserved CIDR ranges are available for Private VPCs"
 #      schedule_expression = var.prefix == "prod" ? "cron(0 6 ? * MON-FRI *)" : "cron(0 5 ? * MON *)"
@@ -265,8 +267,8 @@
 #      input               = jsonencode({ "update_type" : "bulk" })
 #      is_enabled          = var.enable_cloudwatch_rules
 #    }
-#  }
-#  lambda_map_keys_to_arns = {
-#    for key, lambda_function in module.lambda_functions.functions : key => lambda_function.arn
-#  }
-#}
+  }
+  lambda_map_keys_to_arns = {
+    for key, lambda_function in module.lambda_functions.functions : key => lambda_function.arn
+  }
+}

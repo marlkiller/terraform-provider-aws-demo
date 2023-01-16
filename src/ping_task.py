@@ -30,21 +30,16 @@ os.putenv('TZ', 'Asia/Shanghai')
 time.tzset()
 
 ec2_client = boto3.client('ec2')
-
-queue_resource = boto3.resource('sqs')
-queue_client = boto3.client('sqs')
-acton_queue = queue_resource.Queue('https://sqs.cn-north-1.amazonaws.com.cn/298456415402/action_queue')
 sns_client = boto3.client('sns')
 
 lock_table = boto3.resource('dynamodb').Table('network_monitor_lock')
-acl_table = boto3.resource('dynamodb').Table('network_monitor_acl')
 status_table = boto3.resource('dynamodb').Table('network_monitor_status')
 vm_status_table = boto3.resource('dynamodb').Table('network_monitor_vm')
 
 FMT_PATTERN = "%Y-%m-%d %H:%M:%S"
 PING_COUNT = 4
 TASK_RUN_TIME = 120
-SUCCESS_DIFF = 300
+SUCCESS_DIFF = 60
 CURRENT_PLATFORM = platform.system()
 
 if CURRENT_PLATFORM.lower() == 'darwin':
@@ -53,9 +48,6 @@ elif CURRENT_PLATFORM.lower() == 'linux':
     PING_TIMEOUT = '-w 5'
 else:
     pass
-
-ACL_ID = "acl-0d5098dea8ba07575"
-
 
 def get_logger(log_file_path: str = "./monitor.log"):
     # 检测日志目录
@@ -239,19 +231,21 @@ def do_task(event):
     """
     {
         "ping_ips":["127.0.0.1"],
-        "name":"group_name"
+        "name":"group_name",
+        "acl_id": "acl-0d5098dea8ba07575"
     }    
     """
     logger.info(f'do_task event : {event}')
     current_group = json.loads(event)
     ping_ips = current_group.get('ping_ips', [])
     group_name = current_group.get('name')
+    acl_id = current_group.get('acl_id')
     ips_thread_pool = ThreadPoolExecutor(len(ping_ips), thread_name_prefix='ip_pool')
     t_start = time.time()
     t_end = t_start + TASK_RUN_TIME
-    lock_uuid = str(uuid.uuid1())
+    # lock_uuid = str(uuid.uuid1())
     try:
-        lock_resource(group_name, lock_uuid)
+        # lock_resource(group_name, lock_uuid)
 
         while time.time() < t_end:
 
@@ -261,14 +255,15 @@ def do_task(event):
             for ip in ping_ips:
                 future_task = ips_thread_pool.submit(do_ping, ip)
                 pending_list.append(future_task)
-            ping_loss_result = set()
+            # ping_loss_result = set()
+            ping_loss_result = []
             for pend_item in pending_list:
                 result = pend_item.result()
-                ping_loss_result.add(result)
+                ping_loss_result.append(result)
                 if result == 100:
                     break
             logger.info(f"ping_loss_result : {ping_loss_result}")
-            ping_loss_result = (list(ping_loss_result))
+            # ping_loss_result = (list(ping_loss_result))
             action = None
             if db_status:
                 if db_status.get('ping_loss_result') != str(ping_loss_result):
@@ -278,30 +273,32 @@ def do_task(event):
             if ping_loss_result.__contains__(100):
                 # Network Unreachable , loss 100%
                 action = 'acl-close'
-                acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0]['Entries']
-                current_entry = list(filter(filter_deny, acls_entries))
+                acl_entries = ec2_client.describe_network_acls(NetworkAclIds=[acl_id])['NetworkAcls'][0]['Entries']
+                current_entry = list(filter(filter_deny, acl_entries))
                 if len(current_entry) > 0:
-                    logger.info(f'{ACL_ID} already deny')
+                    logger.info(f'{acl_id} already deny')
                     continue
-            elif len(ping_loss_result) == 1 and ping_loss_result[0] == 0:
-                # All testing IP, no packet loss
-                if db_status:
-                    if db_status.get('ping_loss_result') == '[0]':
-                        diff_seconds = (datetime.now() - datetime.strptime(db_status.get('update_time'),
-                                                                           FMT_PATTERN)).seconds
-                        logger.info(f'diff_seconds :{diff_seconds}/{SUCCESS_DIFF}')
-                        if diff_seconds >= SUCCESS_DIFF:
-                            action = 'acl-open'
-                            save_ping_status(group_name, ping_loss_result)
-                            acls_entries = ec2_client.describe_network_acls(NetworkAclIds=[ACL_ID])['NetworkAcls'][0][
-                                'Entries']
-                            current_entry = list(filter(filter_allow, acls_entries))
-                            if len(current_entry) > 0:
-                                logger.info(f'{ACL_ID} already allow')
-                                continue
-
+            else:
+                set_ping_loss_result = set(ping_loss_result)
+                if len(set_ping_loss_result) == 1 and set_ping_loss_result.pop() == 0:
+                    if not db_status:
+                        continue
+                    db_ping_loss_result = set(json.loads(db_status.get('ping_loss_result',[])))
+                    if not (len(db_ping_loss_result) == 1 and db_ping_loss_result.pop() == 0):
+                        continue
+                    diff_seconds = (datetime.now() - datetime.strptime(db_status.get('update_time'),FMT_PATTERN)).seconds
+                    logger.info(f'diff_seconds :{diff_seconds}/{SUCCESS_DIFF}')
+                    if diff_seconds >= SUCCESS_DIFF:
+                        action = 'acl-open'
+                        save_ping_status(group_name, ping_loss_result)
+                        acl_entries = ec2_client.describe_network_acls(NetworkAclIds=[acl_id])['NetworkAcls'][0][
+                            'Entries']
+                        current_entry = list(filter(filter_allow, acl_entries))
+                        if len(current_entry) > 0:
+                            logger.info(f'{acl_id} already allow')
+                            continue
             if action:
-                action_body = {'action': action}
+                action_body = {'action': action, 'acl_id': acl_id}
                 """
                 TODO LIST
                 1. 上锁
@@ -323,20 +320,21 @@ def do_task(event):
         traceback.print_exc()
         logger.error(e)
     finally:
-        try:
-            lock_table.delete_item(
-                Key={'arn': group_name},
-                ConditionExpression=Attr('uuid').eq(lock_uuid)
-            )
-        except Exception as e:
-            logger.error('Can\'t delete resource lock for %s , msg : %s', group_name, e)
+        pass
+        # try:
+        #     lock_table.delete_item(
+        #         Key={'arn': group_name},
+        #         ConditionExpression=Attr('uuid').eq(lock_uuid)
+        #     )
+        # except Exception as e:
+        #     logger.error('Can\'t delete resource lock for %s , msg : %s', group_name, e)
 
     logger.info(f'do_task complete current_group :{current_group} , cost time - {time.time() - t_start:.4f}s')
 
 
 def put_vm_identity():
-    local_vm_identity = get_vm_identity_arn()
-    # local_vm_identity = 'local'
+    # local_vm_identity = get_vm_identity_arn()
+    local_vm_identity = 'local'
     if not local_vm_identity:
         raise Exception("local_vm_identity is null")
     logger.info(f'vm identity is : {local_vm_identity}')
@@ -348,7 +346,7 @@ def put_vm_identity():
 
 
 @app.route('/receive_messages', methods=['POST', 'GET'])
-def welcome():
+def receive_messages():
     rep = Response(json.dumps({}), content_type='application/json', status=200)
     thread_pool.submit(do_task, request.data.decode('utf-8'))
     return rep
