@@ -1,6 +1,25 @@
 output "lambda_role" {
   value = module.iam.lambda_role
 }
+
+output "vpc" {
+  value = {
+    vpc_id                    = var.vpc_id
+    lambda_subnet_ids         = var.lambda_subnet_ids
+    lambda_security_group_ids = var.lambda_security_group_ids
+  }
+}
+
+#output "vpc_endpoint" {
+#  value = {
+#    "ssm_endpoint" : {
+#      "arn" : aws_vpc_endpoint.ssm_endpoint.arn
+#    }
+#    "ssm_messages_endpoint" : {
+#      "arn" : aws_vpc_endpoint.ssm_messages_endpoint.arn
+#    }
+#  }
+#}
 #
 #output "nuke_account_role" {
 #  value = module.iam.nuke_account_role

@@ -5,7 +5,14 @@ variable "aws_region" {
   default     = "cn-north-1"
   description = "AWS region"
 }
-
+variable "lambda_security_group_ids" {
+  type        = list(string)
+  description = "Security Group ids for Lambda functions wich runs in a VPC"
+}
+variable "lambda_subnet_ids" {
+  type        = list(string)
+  description = "Security Group ids for Lambda functions wich runs in a VPC"
+}
 variable "aws_profile" {
   type        = string
   description = "AWS profile which is used for the deployment"
@@ -129,12 +136,11 @@ variable "lambda_policy_name" {
 #  description = "Description of the StepFunction Policy"
 #}
 #
-## VPC
-#
-#variable "vpc_id" {
-#  type        = string
-#  description = "The Id of the VPC contains subnets and sec groups for lambda"
-#}
+# VPC
+variable "vpc_id" {
+  type        = string
+  description = "The Id of the VPC contains subnets and sec groups for lambda"
+}
 #
 ## SSM Parameter
 #

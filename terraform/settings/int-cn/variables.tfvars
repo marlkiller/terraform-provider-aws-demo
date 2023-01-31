@@ -5,8 +5,9 @@
 aws_profile = "413236434696_UserFull"
 aws_region  = "cn-north-1"
 
-lambda_subnet_ids         = ["subnet-0a182f0faded09196", "subnet-0f73b038c96aea7ed"]
-lambda_security_group_ids = ["sg-0ee837190a458056e"]
+# subnets must be diff az
+lambda_subnet_ids         = ["subnet-00fc1f4584452b59b", "subnet-0452ac7e1f0183cb6"]
+lambda_security_group_ids = ["sg-08428a70c26b56a20"]
 
 instance_name = "traffic_instance"
 instance_type = "t3.micro"
@@ -33,7 +34,7 @@ prefix            = "int-cn"
 lambda_role_name = "TrafficLambdaAutomation"
 #nuke_account_role_name       = "int-cn-traffic-network-nuke-account-role"
 #stepfunction_role_name       = "int-cn-traffic-network-stepfunction-role"
-#vpc_id                       = "vpc-018e400fd8fb9cf0a"
+vpc_id                       = "vpc-0f7f7c84fe9654051"
 #portal_resources_bucket_name = "int-cn-resources.aws-cn.bmw.cloud"
 #cdh_api_gateway_account_id   = "402318116903"
 

@@ -20,6 +20,7 @@ cd ${project_root_dir}/scripts/
 
 sh destroy.sh 413236434696_UserFull ${ssp_env} common_account_infra
 
-
+## full uninstall
+# sh full_destroy.sh 413236434696_UserFull ${ssp_env}
 echo 'over'
 ```
