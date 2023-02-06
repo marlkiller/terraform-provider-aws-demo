@@ -1,4 +1,4 @@
-## Terraform deployment module project
+## Terraform-modules-provider-aws
 
 ### Module info
 
