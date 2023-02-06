@@ -1,5 +1,7 @@
-## terraform deployment project
-### module info
+## Terraform deployment module project
+
+### Module info
+
 #### [common_account_infra](terraform%2Fdeployment%2Fcommon_account_infra)
 
 - vpc
@@ -17,7 +19,8 @@
 
 - ec2
 
-### env
+### Configure the environment
+
 ```shell
 vim ~/.aws/credentials
 [413236434696_UserFull]
@@ -25,32 +28,40 @@ aws_access_key_id = xxxx
 aws_secret_access_key = xxxx
 region=cn-north-1
 ```
+
 ```shell
 export ssp_env=int-cn
 ```
 
-### deploy
+### Perform deployment
 
-#### deploy module
-```shell
-sh deploy.sh 413236434696_UserFull ${ssp_env} common_account_infra
-sh deploy.sh 413236434696_UserFull ${ssp_env} backend
-sh deploy.sh 413236434696_UserFull ${ssp_env} ec2
-```
-#### deploy all modules
-```shell
-sh full_deploy.sh 413236434696_UserFull ${ssp_env}
-```
+- Deploy module
+    ```shell
+    cd scripts
+    sh deploy.sh 413236434696_UserFull ${ssp_env} common_account_infra
+    sh deploy.sh 413236434696_UserFull ${ssp_env} backend
+    sh deploy.sh 413236434696_UserFull ${ssp_env} ec2
+    ```
 
-### destroy
+- Deploy all modules
+    ```shell
+    cd scripts
+    sh full_deploy.sh 413236434696_UserFull ${ssp_env}
+    ```
 
-#### destroy module
-```shell
-sh destroy.sh 413236434696_UserFull ${ssp_env} common_account_infra
-sh destroy.sh 413236434696_UserFull ${ssp_env} backend
-sh destroy.sh 413236434696_UserFull ${ssp_env} ec2
-```
-#### destroy all modules
-```shell
-sh full_destroy.sh 413236434696_UserFull ${ssp_env}
-```
+### Perform destroy
+
+- Destroy module
+    ```shell
+    cd scripts
+    sh destroy.sh 413236434696_UserFull ${ssp_env} common_account_infra
+    sh destroy.sh 413236434696_UserFull ${ssp_env} backend
+    sh destroy.sh 413236434696_UserFull ${ssp_env} ec2
+    ```
+
+- Destroy all modules
+
+    ```shell
+    cd scripts
+    sh full_destroy.sh 413236434696_UserFull ${ssp_env}
+    ```
